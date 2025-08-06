@@ -1,0 +1,3 @@
+app:
+  database: bibliotek.db
+  port: 5678
