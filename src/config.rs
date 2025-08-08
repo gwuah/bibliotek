@@ -15,6 +15,7 @@ pub struct Cli {
 #[derive(Debug, Deserialize, Default)]
 pub struct App {
     database: String,
+    schema: String,
     port: i32,
 }
 
@@ -25,6 +26,10 @@ impl App {
 
     pub fn get_port(&self) -> i32 {
         return self.port;
+    }
+
+    pub fn get_schema_path(&self) -> &str {
+        return &self.schema;
     }
 }
 

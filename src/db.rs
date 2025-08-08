@@ -1,10 +1,11 @@
 use crate::config::Config;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use libsql::{Builder, Connection};
 use std::path::Path;
-use tracing::info;
 
 use std::env;
+
+const SCHEMA_SQL: &str = include_str!("schema.sql");
 
 pub struct Database {
     conn: Connection,
@@ -18,13 +19,20 @@ impl Database {
     pub async fn new(cfg: &Config) -> Result<Self> {
         let home = get_home_dir()?;
         let path = Path::new::<String>(&home).join(cfg.app.get_db());
-        let db = Builder::new_local(path).build().await?;
-        let conn = db.connect()?;
-        match conn.query("SELECT 1", ()).await {
-            Ok(_) => info!("established connection to db!"),
-            Err(e) => return Err(anyhow::anyhow!("failed to connect to database: {}", e)),
-        }
+        let conn = Builder::new_local(path).build().await?.connect()?;
+        let _ = conn
+            .query("SELECT 1", ())
+            .await
+            .context("failed to connect to databas")?;
+        tracing::debug!("established connection to db!");
 
-        Ok(Database { conn })
+        conn.execute_batch(SCHEMA_SQL)
+            .await
+            .context("failed to execute schema.sql")?;
+        tracing::info!("db migration complete");
+
+        let instance = Database { conn };
+
+        Ok(instance)
     }
 }
