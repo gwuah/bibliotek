@@ -11,23 +11,20 @@ use bibliotek::handler::healthcheck;
 use clap::Parser;
 use tokio::{signal, sync::mpsc};
 use tokio_util::sync::CancellationToken;
-
-use tracing::{error, info};
-// use std::future::Future;
-// use serde::{Deserialize, Serialize};
+use tracing;
 
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt().json().init();
-    info!("bibliotek.svc starting");
+    tracing::info!("bibliotek.svc starting");
 
     let args = Cli::parse();
     let cfg = Config::new(&args.config_path).unwrap_or_else(|e| {
-        error!(error = %e, "failed to load config file");
+        tracing::error!(error = %e, "failed to load config file");
         std::process::exit(1);
     });
     let _ = Database::new(&cfg).await.unwrap_or_else(|e| {
-        error!(error = %e, "failed to setup database");
+        tracing::error!(error = %e, "failed to setup database");
         std::process::exit(1);
     });
     let address = format!("0.0.0.0:{}", cfg.app.get_port().to_string());
@@ -38,25 +35,25 @@ async fn main() {
     let listener = tokio::net::TcpListener::bind(&address)
         .await
         .unwrap_or_else(|e| {
-            error!(error = %e, "failed to setup tcp listener");
+            tracing::error!(error = %e, "failed to setup tcp listener");
             std::process::exit(1);
         });
 
-    info!("bibliotek.svc running on {}", &address);
+    tracing::info!("bibliotek.svc running on {}", &address);
     tokio::select! {
         result = axum::serve(listener, app) => {
             if let Err(err) = result {
-                error!(error = %err, "failed to setup tcp listener");
+                tracing::error!(error = %err, "failed to setup tcp listener");
                 std::process::exit(1);
             }
         }
         _ = signal::ctrl_c() => {
-            info!("ctrl+c signal received, preparing to shutdown");
+            tracing::info!("ctrl+c signal received, preparing to shutdown");
             cancellation_token.cancel();
         }
     }
 
     drop(shutdown_complete_tx);
     shutdown_complete_rx.recv().await;
-    info!("bibliotek.svc going off, graceful shutdown complete");
+    tracing::info!("bibliotek.svc going off, graceful shutdown complete");
 }
