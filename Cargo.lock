@@ -295,6 +295,7 @@ dependencies = [
  "clap",
  "libsql",
  "serde",
+ "serde_json",
  "serde_yaml",
  "thiserror 2.0.12",
  "tokio",

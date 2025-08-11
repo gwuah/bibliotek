@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use axum::{
     Router,
     routing::get,
@@ -7,7 +9,7 @@ use axum::{
 };
 use bibliotek::config::{Cli, Config};
 use bibliotek::db::Database;
-use bibliotek::handler::healthcheck;
+use bibliotek::handler::{get_books, healthcheck};
 use clap::Parser;
 use tokio::{signal, sync::mpsc};
 use tokio_util::sync::CancellationToken;
@@ -23,15 +25,20 @@ async fn main() {
         tracing::error!(error = %e, "failed to load config file");
         std::process::exit(1);
     });
-    let _ = Database::new(&cfg).await.unwrap_or_else(|e| {
+    let db = Arc::new(Database::new(&cfg).await.unwrap_or_else(|e| {
         tracing::error!(error = %e, "failed to setup database");
         std::process::exit(1);
-    });
+    }));
     let address = format!("0.0.0.0:{}", cfg.app.get_port().to_string());
     let cancellation_token = CancellationToken::new();
     let (shutdown_complete_tx, mut shutdown_complete_rx) = mpsc::channel::<()>(1);
 
-    let app = Router::new().route("/", get(healthcheck));
+    let app = Router::new()
+        .route("/", get(healthcheck))
+        .route("/books", get(get_books));
+
+    let app = app.with_state(db);
+
     let listener = tokio::net::TcpListener::bind(&address)
         .await
         .unwrap_or_else(|e| {

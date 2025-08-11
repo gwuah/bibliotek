@@ -5,9 +5,10 @@ CREATE TABLE IF NOT EXISTS authors (
 
 CREATE TABLE IF NOT EXISTS books (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL UNIQUE,
     url TEXT NOT NULL UNIQUE,
+    cover_url TEXT UNIQUE,
     ratings INTEGER,
-    author_id INTEGER NOT NULL,
-    FOREIGN KEY (author_id) REFERENCES author (id)
+    author_id INTEGER,
+    FOREIGN KEY (author_id) REFERENCES authors (id)
 );
