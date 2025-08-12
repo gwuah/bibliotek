@@ -17,6 +17,9 @@ use tracing;
 
 #[tokio::main]
 async fn main() {
+    // Load .env file if it exists
+    dotenv::dotenv().ok();
+
     tracing_subscriber::fmt().json().init();
     tracing::info!("bibliotek.svc starting");
 
