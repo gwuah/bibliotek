@@ -17,6 +17,7 @@ pub struct Cli {
 pub struct App {
     database: String,
     schema: String,
+    bucket: String,
     port: i32,
 }
 
@@ -40,6 +41,10 @@ impl App {
 
     pub fn get_schema_path(&self) -> &str {
         return &self.schema;
+    }
+
+    pub fn get_bucket(&self) -> &str {
+        return &self.bucket;
     }
 }
 

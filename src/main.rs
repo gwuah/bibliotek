@@ -2,14 +2,18 @@ use std::sync::Arc;
 
 use axum::{
     Router,
-    routing::get,
+    routing::{get, post},
     // extract::{Path, Query, State},
     // http::StatusCode,
     // response::IntoResponse,
 };
-use bibliotek::config::{Cli, Config};
 use bibliotek::db::Database;
-use bibliotek::handler::{get_books, healthcheck};
+use bibliotek::handler::{AppState, get_books, healthcheck, upload};
+use bibliotek::s3::ObjectStorage;
+use bibliotek::{
+    config::{Cli, Config},
+    handler::show_form,
+};
 use clap::Parser;
 use tokio::{signal, sync::mpsc};
 use tokio_util::sync::CancellationToken;
@@ -32,15 +36,21 @@ async fn main() {
         tracing::error!(error = %e, "failed to setup database");
         std::process::exit(1);
     }));
+    let s3 = Arc::new(ObjectStorage::new(&cfg).await.unwrap_or_else(|e| {
+        tracing::error!(error = %e, "failed to setup object storage");
+        std::process::exit(1);
+    }));
+
     let address = format!("0.0.0.0:{}", cfg.app.get_port().to_string());
     let cancellation_token = CancellationToken::new();
     let (shutdown_complete_tx, mut shutdown_complete_rx) = mpsc::channel::<()>(1);
 
     let app = Router::new()
         .route("/", get(healthcheck))
-        .route("/books", get(get_books));
-
-    let app = app.with_state(db);
+        .route("/upload", get(show_form))
+        .route("/books", get(get_books))
+        .route("/upload", post(upload))
+        .with_state(AppState { db, s3 });
 
     let listener = tokio::net::TcpListener::bind(&address)
         .await
