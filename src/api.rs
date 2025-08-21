@@ -28,32 +28,6 @@ impl APIResponse {
         };
     }
 
-    pub fn new_from_msg_and_upload_id(msg: &str, upload_id: &str) -> Self {
-        return APIResponse {
-            status: msg.to_owned(),
-            books: vec![],
-            upload_id: None,
-        };
-    }
-
-    pub fn new(msg: Option<&str>, books: Option<Vec<Book>>, upload_id: &str) -> Self {
-        let books = match books {
-            Some(books) => books,
-            None => vec![],
-        };
-
-        let msg = match msg {
-            Some(msg) => msg,
-            None => "",
-        };
-
-        return APIResponse {
-            status: msg.to_owned(),
-            books: books,
-            upload_id: None,
-        };
-    }
-
     pub fn to_json(self) -> impl serde::Serialize {
         return self;
     }

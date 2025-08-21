@@ -50,7 +50,6 @@ impl ObjectStorage {
     }
 
     pub async fn start_upload(&self, key: &str) -> Result<String, ObjectStorageError> {
-        tracing::info!("starting upload for key: {}", key);
         let response = self
             .client
             .create_multipart_upload()
@@ -135,7 +134,10 @@ impl ObjectStorage {
         Ok(etag)
     }
 
-    pub async fn complete_upload(&self, upload_id: &str) -> Result<String, ObjectStorageError> {
+    pub async fn complete_upload(
+        &self,
+        upload_id: &str,
+    ) -> Result<Option<String>, ObjectStorageError> {
         let (key, locked_parts) = {
             let sessions = self
                 .sessions
@@ -148,6 +150,8 @@ impl ObjectStorage {
 
             (session.key.clone(), session.parts.clone())
         };
+
+        println!("key: {:?}, upload_id: {:?}", key, upload_id);
 
         let parts = locked_parts
             .lock()
@@ -170,14 +174,13 @@ impl ObjectStorage {
             .await
             .map_err(|e| ObjectStorageError::S3Error(Box::new(e)))?;
 
-        let location = response.location.ok_or(ObjectStorageError::UploadFailed)?;
-
         let mut sessions = self
             .sessions
             .lock()
             .map_err(|e| ObjectStorageError::LockError(e.to_string()))?;
 
         sessions.remove(upload_id);
-        Ok(location)
+
+        Ok(response.location)
     }
 }

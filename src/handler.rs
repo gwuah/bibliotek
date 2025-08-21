@@ -22,6 +22,13 @@ pub struct AppState {
     pub s3: Arc<ObjectStorage>,
 }
 
+#[derive(Debug)]
+pub struct Form {
+    pub file_name: Option<String>,
+    pub upload_id: Option<String>,
+    pub chunk: Option<axum::body::Bytes>,
+}
+
 const DEFAULT_PAGE: u32 = 1;
 const DEFAULT_LIMIT: u32 = 50;
 
@@ -96,51 +103,41 @@ pub async fn add_book(State(state): State<AppState>, Query(qp): Query<QueryParam
     })
 }
 
-async fn extract_string_part(
-    multipart: &mut Multipart,
-    name: &str,
-) -> Result<String, HandlerError> {
+async fn extract_form(multipart: &mut Multipart) -> Result<Form, HandlerError> {
+    let mut form = Form {
+        file_name: None,
+        upload_id: None,
+        chunk: None,
+    };
+
+    let map_err = |e: axum::extract::multipart::MultipartError| -> HandlerError {
+        HandlerError::ValidationError(e.to_string())
+    };
+
     while let Ok(Some(field)) = multipart.next_field().await {
         let form_field_name = field.name().unwrap_or("unknown");
-        if form_field_name == name {
-            return field
-                .text()
-                .await
-                .map_err(|e| HandlerError::ValidationError(e.to_string()));
+        match form_field_name {
+            "file_name" => form.file_name = Some(field.text().await.map_err(map_err)?),
+            "upload_id" => form.upload_id = Some(field.text().await.map_err(map_err)?),
+            "chunk" => form.chunk = Some(field.bytes().await.map_err(map_err)?),
+            _ => {
+                tracing::error!("unknown form field: {}", form_field_name);
+                continue;
+            }
         }
     }
 
-    Err(HandlerError::ValidationError(format!(
-        "form_field {} is missing",
-        name
-    )))
-}
-
-async fn extract_bytes_part(
-    multipart: &mut Multipart,
-    name: &str,
-) -> Result<axum::body::Bytes, HandlerError> {
-    while let Ok(Some(field)) = multipart.next_field().await {
-        let form_field_name = field.name().unwrap_or("unknown");
-        if form_field_name == name {
-            return field
-                .bytes()
-                .await
-                .map_err(|e| HandlerError::ValidationError(e.to_string()));
-        }
-    }
-
-    Err(HandlerError::ValidationError(format!(
-        "form_field {} is missing",
-        name
-    )))
+    Ok(form)
 }
 
 async fn handle_init_upload(
     state: &AppState,
     multipart: &mut Multipart,
 ) -> Result<String, HandlerError> {
-    let filename = extract_string_part(multipart, "file_name").await?;
+    let form = extract_form(multipart).await?;
+    let filename = form.file_name.ok_or(HandlerError::ValidationError(
+        "file_name is required".to_string(),
+    ))?;
     let response = state.s3.start_upload(filename.as_str()).await?;
     Ok(response)
 }
@@ -149,8 +146,13 @@ async fn handle_continue_upload(
     state: &AppState,
     multipart: &mut Multipart,
 ) -> Result<String, HandlerError> {
-    let upload_id = extract_string_part(multipart, "upload_id").await?;
-    let chunk = extract_bytes_part(multipart, "chunk").await?;
+    let form = extract_form(multipart).await?;
+    let upload_id = form.upload_id.ok_or(HandlerError::ValidationError(
+        "upload_id is required".to_string(),
+    ))?;
+    let chunk = form.chunk.ok_or(HandlerError::ValidationError(
+        "chunk is required".to_string(),
+    ))?;
     let response = state.s3.upload(&upload_id, chunk.to_vec()).await?;
     Ok(response)
 }
@@ -159,9 +161,14 @@ async fn handle_complete_upload(
     state: &AppState,
     multipart: &mut Multipart,
 ) -> Result<String, HandlerError> {
-    let upload_id = extract_string_part(multipart, "upload_id").await?;
+    let form = extract_form(multipart).await?;
+    let upload_id = form.upload_id.ok_or(HandlerError::ValidationError(
+        "upload_id is required".to_string(),
+    ))?;
     let response = state.s3.complete_upload(&upload_id).await?;
-    Ok(response)
+    println!("response: {:?}", response);
+    // let location = response.unwrap();
+    Ok("location".to_string())
 }
 
 pub async fn upload(

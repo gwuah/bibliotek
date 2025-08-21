@@ -9,7 +9,6 @@ pub enum ObjectStorageError {
     EnvError(std::env::VarError),
     LockError(String),
     ETagMissing,
-    UploadFailed,
 }
 
 impl std::error::Error for ObjectStorageError {
@@ -33,7 +32,6 @@ impl fmt::Display for ObjectStorageError {
             EnvError(e) => write!(f, "EnvError: {}", e),
             LockError(s) => write!(f, "LockError: {}", s),
             ETagMissing => write!(f, "ETagMissing"),
-            UploadFailed => write!(f, "UploadFailed"),
         }
     }
 }

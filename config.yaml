@@ -1,6 +1,6 @@
 app:
   database: bibliotek.db
-  bucket: bibliotek-dev
+  bucket: bibliotek-test
   schema: schema.sql
   port: 5678
 
