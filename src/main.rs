@@ -3,9 +3,6 @@ use std::sync::Arc;
 use axum::{
     Router,
     routing::{get, post},
-    // extract::{Path, Query, State},
-    // http::StatusCode,
-    // response::IntoResponse,
 };
 use bibliotek::db::Database;
 use bibliotek::handler::{AppState, get_books, healthcheck, serve_index, upload};

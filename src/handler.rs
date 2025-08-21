@@ -55,7 +55,11 @@ impl QueryParams {
 
 pub async fn healthcheck() -> impl IntoResponse {
     info!("got healthcheck request");
-    Json(APIResponse::new(Some("ok"), None))
+    crate::good_response(APIResponse {
+        books: vec![],
+        status: "ok".to_owned(),
+        upload_id: None,
+    })
 }
 
 pub async fn get_books(State(state): State<AppState>, Query(qp): Query<QueryParams>) -> Response {
@@ -64,17 +68,15 @@ pub async fn get_books(State(state): State<AppState>, Query(qp): Query<QueryPara
 
     if let Err(e) = db_call {
         tracing::info!("failed to get books. db_error: {}", e);
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(APIResponse::new(Some("failed to get books"), None)),
-        )
-            .into_response();
+        return crate::bad_request(APIResponse::new_from_msg("failed to get books"));
     }
 
     tracing::info!("got books");
-    let response = APIResponse::new(Some("got books"), db_call.ok());
-
-    (StatusCode::OK, Json(response)).into_response()
+    crate::good_response(APIResponse {
+        books: db_call.ok().unwrap_or_default(),
+        status: "ok".to_owned(),
+        upload_id: None,
+    })
 }
 
 pub async fn add_book(State(state): State<AppState>, Query(qp): Query<QueryParams>) -> Response {
@@ -82,30 +84,16 @@ pub async fn add_book(State(state): State<AppState>, Query(qp): Query<QueryParam
     let db_call = state.db.get_books(hp).await;
 
     if let Err(e) = db_call {
-        tracing::info!("failed to get books. db_error: {}", e);
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(APIResponse::new(Some("failed to get books"), None)),
-        )
-            .into_response();
+        tracing::info!("failed to add book. db_error: {}", e);
+        return crate::bad_request(APIResponse::new_from_msg("failed to add book"));
     }
 
-    tracing::info!("got books");
-    let response = APIResponse::new(Some("got books"), db_call.ok());
-
-    (StatusCode::OK, Json(response)).into_response()
-}
-
-fn bad_request(msg: &str) -> axum::response::Response {
-    (
-        StatusCode::BAD_REQUEST,
-        Json(APIResponse::new_from_msg(msg)),
-    )
-        .into_response()
-}
-
-fn good_response(body: APIResponse) -> axum::response::Response {
-    (StatusCode::OK, Json(body)).into_response()
+    tracing::info!("added book");
+    crate::good_response(APIResponse {
+        books: vec![],
+        status: "ok".to_owned(),
+        upload_id: None,
+    })
 }
 
 async fn extract_part(multipart: &mut Multipart, name: &str) -> Result<String, HandlerError> {
@@ -129,18 +117,6 @@ async fn handle_init_upload(
     state: &AppState,
     multipart: &mut Multipart,
 ) -> Result<String, HandlerError> {
-    // let response = state
-    //     .s3
-    //     .client
-    //     .list_buckets()
-    //     .send()
-    //     .await
-    //     .expect("failed to list buckets");
-    // println!("bucket length: {:?}", response.buckets().len());
-
-    let buckets = state.s3.list_buckets().await?;
-    println!("buckets: {:?}", buckets);
-
     let filename = extract_part(multipart, "file_name").await?;
     let response = state.s3.start_upload(filename.as_str()).await?;
     Ok(response)
@@ -155,7 +131,7 @@ pub async fn upload(
         Some(state) => state,
         None => {
             tracing::error!("state is required");
-            return bad_request("state is required");
+            return crate::bad_request(APIResponse::new_from_msg("state is required"));
         }
     };
 
@@ -164,11 +140,13 @@ pub async fn upload(
             Ok(upload_id) => upload_id,
             Err(e) => {
                 tracing::error!("failed to initialize upload: {}", e);
-                return bad_request("failed to initialize upload");
+                return crate::server_error(APIResponse::new_from_msg(
+                    "failed to initialize upload",
+                ));
             }
         };
 
-        return good_response(APIResponse {
+        return crate::good_response(APIResponse {
             books: vec![],
             status: "upload initialized".to_owned(),
             upload_id: Some(upload_id),

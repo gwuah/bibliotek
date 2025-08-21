@@ -19,7 +19,7 @@ pub struct ObjectStorage {
 
 impl ObjectStorage {
     pub async fn new(cfg: &Config) -> Result<Self, ObjectStorageError> {
-        let region = env::var("AWS_ENDPOINT_URL_S3")?;
+        let region = env::var("AWS_REGION")?;
         let endpoint_url = env::var("AWS_ENDPOINT_URL_S3")?;
 
         let config = aws_config::from_env()
@@ -45,7 +45,7 @@ impl ObjectStorage {
             .list_buckets()
             .send()
             .await
-            .map_err(|e| ObjectStorageError::S3Error(e.into()))?;
+            .map_err(|e| ObjectStorageError::S3Error(Box::new(e)))?;
         Ok(response.buckets().to_vec())
     }
 
@@ -58,7 +58,7 @@ impl ObjectStorage {
             .key(key)
             .send()
             .await
-            .map_err(|e| ObjectStorageError::S3Error(e.into()))?;
+            .map_err(|e| ObjectStorageError::S3Error(Box::new(e)))?;
 
         let mut sessions = self
             .sessions
@@ -118,7 +118,7 @@ impl ObjectStorage {
             .body(data.into())
             .send()
             .await
-            .map_err(|e| ObjectStorageError::S3Error(e.into()))?;
+            .map_err(|e| ObjectStorageError::S3Error(Box::new(e)))?;
 
         let etag = response.e_tag.ok_or(ObjectStorageError::ETagMissing)?;
 
@@ -168,7 +168,7 @@ impl ObjectStorage {
             .multipart_upload(completed_upload)
             .send()
             .await
-            .map_err(|e| ObjectStorageError::S3Error(e.into()))?;
+            .map_err(|e| ObjectStorageError::S3Error(Box::new(e)))?;
 
         let location = response.location.ok_or(ObjectStorageError::UploadFailed)?;
 

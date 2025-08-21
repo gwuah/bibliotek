@@ -11,9 +11,11 @@ pub struct QueryParams {
 
 #[derive(Debug, Serialize, Default)]
 pub struct APIResponse {
+    #[serde(skip_serializing_if = "String::is_empty")]
     pub status: String,
-    // #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub books: Vec<Book>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub upload_id: Option<String>,
 }
 
@@ -34,7 +36,7 @@ impl APIResponse {
         };
     }
 
-    pub fn new(msg: Option<&str>, books: Option<Vec<Book>>) -> Self {
+    pub fn new(msg: Option<&str>, books: Option<Vec<Book>>, upload_id: &str) -> Self {
         let books = match books {
             Some(books) => books,
             None => vec![],
