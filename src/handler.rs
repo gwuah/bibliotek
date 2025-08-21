@@ -96,7 +96,10 @@ pub async fn add_book(State(state): State<AppState>, Query(qp): Query<QueryParam
     })
 }
 
-async fn extract_part(multipart: &mut Multipart, name: &str) -> Result<String, HandlerError> {
+async fn extract_string_part(
+    multipart: &mut Multipart,
+    name: &str,
+) -> Result<String, HandlerError> {
     while let Ok(Some(field)) = multipart.next_field().await {
         let form_field_name = field.name().unwrap_or("unknown");
         if form_field_name == name {
@@ -113,12 +116,51 @@ async fn extract_part(multipart: &mut Multipart, name: &str) -> Result<String, H
     )))
 }
 
+async fn extract_bytes_part(
+    multipart: &mut Multipart,
+    name: &str,
+) -> Result<axum::body::Bytes, HandlerError> {
+    while let Ok(Some(field)) = multipart.next_field().await {
+        let form_field_name = field.name().unwrap_or("unknown");
+        if form_field_name == name {
+            return field
+                .bytes()
+                .await
+                .map_err(|e| HandlerError::ValidationError(e.to_string()));
+        }
+    }
+
+    Err(HandlerError::ValidationError(format!(
+        "form_field {} is missing",
+        name
+    )))
+}
+
 async fn handle_init_upload(
     state: &AppState,
     multipart: &mut Multipart,
 ) -> Result<String, HandlerError> {
-    let filename = extract_part(multipart, "file_name").await?;
+    let filename = extract_string_part(multipart, "file_name").await?;
     let response = state.s3.start_upload(filename.as_str()).await?;
+    Ok(response)
+}
+
+async fn handle_continue_upload(
+    state: &AppState,
+    multipart: &mut Multipart,
+) -> Result<String, HandlerError> {
+    let upload_id = extract_string_part(multipart, "upload_id").await?;
+    let chunk = extract_bytes_part(multipart, "chunk").await?;
+    let response = state.s3.upload(&upload_id, chunk.to_vec()).await?;
+    Ok(response)
+}
+
+async fn handle_complete_upload(
+    state: &AppState,
+    multipart: &mut Multipart,
+) -> Result<String, HandlerError> {
+    let upload_id = extract_string_part(multipart, "upload_id").await?;
+    let response = state.s3.complete_upload(&upload_id).await?;
     Ok(response)
 }
 
@@ -150,6 +192,38 @@ pub async fn upload(
             books: vec![],
             status: "upload initialized".to_owned(),
             upload_id: Some(upload_id),
+        });
+    }
+
+    if upload_state == "continue" {
+        let upload_id = match handle_continue_upload(&state, &mut multipart).await {
+            Ok(upload_id) => upload_id,
+            Err(e) => {
+                tracing::error!("failed to continue upload: {}", e);
+                return crate::server_error(APIResponse::new_from_msg("failed to continue upload"));
+            }
+        };
+
+        return crate::good_response(APIResponse {
+            books: vec![],
+            status: "upload progressed".to_owned(),
+            upload_id: Some(upload_id),
+        });
+    }
+
+    if upload_state == "complete" {
+        let object_url = match handle_complete_upload(&state, &mut multipart).await {
+            Ok(object_url) => object_url,
+            Err(e) => {
+                tracing::error!("failed to complete upload: {}", e);
+                return crate::server_error(APIResponse::new_from_msg("failed to complete upload"));
+            }
+        };
+
+        return crate::good_response(APIResponse {
+            books: vec![],
+            status: "upload completed".to_owned(),
+            upload_id: Some(object_url),
         });
     }
 

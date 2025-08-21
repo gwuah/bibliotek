@@ -85,7 +85,7 @@ impl ObjectStorage {
     }
 
     pub async fn upload(
-        &mut self,
+        &self,
         upload_id: &str,
         data: Vec<u8>,
     ) -> Result<String, ObjectStorageError> {
@@ -135,7 +135,7 @@ impl ObjectStorage {
         Ok(etag)
     }
 
-    pub async fn complete_upload(&mut self, upload_id: &str) -> Result<String, ObjectStorageError> {
+    pub async fn complete_upload(&self, upload_id: &str) -> Result<String, ObjectStorageError> {
         let (key, locked_parts) = {
             let sessions = self
                 .sessions
