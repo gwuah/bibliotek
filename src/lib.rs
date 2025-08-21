@@ -3,6 +3,7 @@ use axum::http::StatusCode;
 pub mod api;
 pub mod config;
 pub mod db;
+pub mod error;
 pub mod handler;
 pub mod s3;
 

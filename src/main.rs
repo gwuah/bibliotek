@@ -8,7 +8,7 @@ use axum::{
     // response::IntoResponse,
 };
 use bibliotek::db::Database;
-use bibliotek::handler::{AppState, get_books, healthcheck, upload};
+use bibliotek::handler::{AppState, get_books, healthcheck, serve_index, upload};
 use bibliotek::s3::ObjectStorage;
 use bibliotek::{
     config::{Cli, Config},
@@ -47,6 +47,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/", get(healthcheck))
+        .route("/index.html", get(serve_index))
         .route("/upload", get(show_form))
         .route("/books", get(get_books))
         .route("/upload", post(upload))

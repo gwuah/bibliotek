@@ -1,6 +1,7 @@
 use crate::config::Config;
+use crate::error::ObjectStorageError;
 use aws_sdk_s3::Client;
-use aws_sdk_s3::types::{CompletedMultipartUpload, CompletedPart};
+use aws_sdk_s3::types::{Bucket, CompletedMultipartUpload, CompletedPart};
 use std::collections::HashMap;
 use std::env;
 use std::sync::{Arc, Mutex};
@@ -11,29 +12,9 @@ pub struct UploadSession {
 }
 
 pub struct ObjectStorage {
-    client: Client,
+    pub client: Client,
     sessions: Arc<Mutex<HashMap<String, UploadSession>>>,
     bucket: String,
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum ObjectStorageError {
-    #[error("failed to get upload id")]
-    UploadIdMissing,
-    #[error("session already exists: {0}")]
-    SessionAlreadyExists(String),
-    #[error("session not found: {0}")]
-    SessionNotFound(String),
-    #[error("failed to upload to s3: {0}")]
-    S3Error(#[from] aws_sdk_s3::Error),
-    #[error("failed to get environment variable: {0}")]
-    EnvError(#[from] std::env::VarError),
-    #[error("failed to acquire session lock: {0}")]
-    LockError(String),
-    #[error("etag is missing")]
-    ETagMissing,
-    #[error("upload failed")]
-    UploadFailed,
 }
 
 impl ObjectStorage {
@@ -58,7 +39,18 @@ impl ObjectStorage {
         Ok(object_storage)
     }
 
-    pub async fn start_upload(&mut self, key: &str) -> Result<String, ObjectStorageError> {
+    pub async fn list_buckets(&self) -> Result<Vec<Bucket>, ObjectStorageError> {
+        let response = self
+            .client
+            .list_buckets()
+            .send()
+            .await
+            .map_err(|e| ObjectStorageError::S3Error(e.into()))?;
+        Ok(response.buckets().to_vec())
+    }
+
+    pub async fn start_upload(&self, key: &str) -> Result<String, ObjectStorageError> {
+        tracing::info!("starting upload for key: {}", key);
         let response = self
             .client
             .create_multipart_upload()
