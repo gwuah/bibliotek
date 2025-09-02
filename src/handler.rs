@@ -34,7 +34,7 @@ const DEFAULT_LIMIT: u32 = 50;
 
 #[derive(Debug)]
 pub struct HandlerParams {
-    pub q: Option<String>,
+    pub query: Option<String>,
     pub page: u32,
     pub limit: u32,
     pub offset: u32,
@@ -43,15 +43,15 @@ pub struct HandlerParams {
 
 impl QueryParams {
     pub fn into_handler_params(self) -> HandlerParams {
-        let page = self.page.unwrap_or(DEFAULT_PAGE).min(1);
+        let page = self.page.unwrap_or(DEFAULT_PAGE).max(1);
         let limit = self
             .limit
             .unwrap_or(DEFAULT_LIMIT)
-            .max(0)
+            .max(1)
             .min(DEFAULT_LIMIT);
 
         HandlerParams {
-            q: self.q,
+            query: self.q,
             page: page,
             limit: limit,
             offset: (page - 1) * limit,
@@ -66,6 +66,7 @@ pub async fn healthcheck() -> impl IntoResponse {
         books: vec![],
         status: "ok".to_owned(),
         upload_id: None,
+        metadata: None,
     })
 }
 
@@ -83,6 +84,24 @@ pub async fn get_books(State(state): State<AppState>, Query(qp): Query<QueryPara
         books: db_call.ok().unwrap_or_default(),
         status: "ok".to_owned(),
         upload_id: None,
+        metadata: None,
+    })
+}
+
+pub async fn get_metadata(State(state): State<AppState>) -> Response {
+    let db_call = state.db.get_metadata_aggregates().await;
+
+    if let Err(e) = db_call {
+        tracing::info!("failed to get metadata. db_error: {}", e);
+        return crate::bad_request(APIResponse::new_from_msg("failed to get metadata"));
+    }
+
+    tracing::info!("got metadata aggregates");
+    crate::good_response(APIResponse {
+        books: vec![],
+        status: "ok".to_owned(),
+        upload_id: None,
+        metadata: Some(db_call.ok().unwrap()),
     })
 }
 
@@ -100,6 +119,7 @@ pub async fn add_book(State(state): State<AppState>, Query(qp): Query<QueryParam
         books: vec![],
         status: "ok".to_owned(),
         upload_id: None,
+        metadata: None,
     })
 }
 
@@ -197,6 +217,7 @@ pub async fn upload(
             books: vec![],
             status: "upload initialized".to_owned(),
             upload_id: Some(upload_id),
+            metadata: None,
         });
     }
 
@@ -213,6 +234,7 @@ pub async fn upload(
             books: vec![],
             status: "upload progressed".to_owned(),
             upload_id: Some(upload_id),
+            metadata: None,
         });
     }
 
@@ -229,6 +251,7 @@ pub async fn upload(
             books: vec![],
             status: "upload completed".to_owned(),
             upload_id: Some(object_url),
+            metadata: None,
         });
     }
 

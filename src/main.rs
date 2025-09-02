@@ -4,8 +4,9 @@ use axum::{
     Router,
     routing::{get, post},
 };
+use tower_http::services::ServeDir;
 use bibliotek::db::Database;
-use bibliotek::handler::{AppState, get_books, healthcheck, serve_index, upload};
+use bibliotek::handler::{AppState, get_books, get_metadata, healthcheck, serve_index, upload};
 use bibliotek::s3::ObjectStorage;
 use bibliotek::{
     config::{Cli, Config},
@@ -47,7 +48,11 @@ async fn main() {
         .route("/index.html", get(serve_index))
         .route("/upload", get(show_form))
         .route("/books", get(get_books))
+        .route("/metadata", get(get_metadata))
         .route("/upload", post(upload))
+        .nest_service("/js", ServeDir::new("web/js"))
+        .nest_service("/css", ServeDir::new("web/css"))
+        .nest_service("/static", ServeDir::new("web/static"))
         .with_state(AppState { db, s3 });
 
     let listener = tokio::net::TcpListener::bind(&address)

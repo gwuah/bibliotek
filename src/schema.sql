@@ -3,6 +3,11 @@ CREATE TABLE IF NOT EXISTS authors (
     name TEXT NOT NULL UNIQUE
 );
 
+CREATE TABLE IF NOT EXISTS tags (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE
+);
+
 CREATE TABLE IF NOT EXISTS books (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL UNIQUE,
@@ -11,4 +16,12 @@ CREATE TABLE IF NOT EXISTS books (
     ratings INTEGER,
     author_id INTEGER,
     FOREIGN KEY (author_id) REFERENCES authors (id)
+);
+
+CREATE TABLE IF NOT EXISTS book_tags (
+    book_id INTEGER,
+    tag_id INTEGER,
+    PRIMARY KEY (book_id, tag_id),
+    FOREIGN KEY (book_id) REFERENCES books (id),
+    FOREIGN KEY (tag_id) REFERENCES tags (id)
 );

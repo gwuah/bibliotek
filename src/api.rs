@@ -1,4 +1,4 @@
-use crate::db::Book;
+use crate::db::{Book, MetadataAggregate};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
@@ -17,6 +17,8 @@ pub struct APIResponse {
     pub books: Vec<Book>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub upload_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<MetadataAggregate>,
 }
 
 impl APIResponse {
@@ -25,6 +27,7 @@ impl APIResponse {
             status: msg.to_owned(),
             books: vec![],
             upload_id: None,
+            metadata: None,
         };
     }
 
