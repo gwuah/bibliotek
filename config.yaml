@@ -10,3 +10,4 @@ storage:
   aws_endpoint_url_s3: ${AWS_ENDPOINT_URL_S3:-https://t3.storage.dev}
   aws_endpoint_url_iam: ${AWS_ENDPOINT_URL_IAM:-https://iam.storage.dev}
   aws_region: ${AWS_REGION:-auto}
+  service: ${SERVICE:-t3}

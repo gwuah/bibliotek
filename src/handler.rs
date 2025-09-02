@@ -166,9 +166,7 @@ async fn handle_complete_upload(
         "upload_id is required".to_string(),
     ))?;
     let response = state.s3.complete_upload(&upload_id).await?;
-    println!("response: {:?}", response);
-    // let location = response.unwrap();
-    Ok("location".to_string())
+    Ok(response)
 }
 
 pub async fn upload(

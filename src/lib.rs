@@ -39,3 +39,11 @@ pub fn unpack_error(err: &(dyn Error)) -> String {
     }
     parts.join(": ")
 }
+
+pub fn get_s3_url(service: &str, bucket: &str, key: &str) -> String {
+    match service {
+        "t3" => format!("https://{}.t3.storage.dev/{}", bucket, key),
+        "s3" => format!("https://{}.s3.amazonaws.com/{}", bucket, key),
+        _ => format!("https://{}.storage.dev/{}", service, key),
+    }
+}

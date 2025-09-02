@@ -28,6 +28,7 @@ pub struct Storage {
     pub aws_endpoint_url_s3: String,
     pub aws_endpoint_url_iam: String,
     pub aws_region: String,
+    pub service: String,
 }
 
 impl App {

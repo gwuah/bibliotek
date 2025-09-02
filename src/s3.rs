@@ -15,6 +15,7 @@ pub struct ObjectStorage {
     pub client: Client,
     sessions: Arc<Mutex<HashMap<String, UploadSession>>>,
     bucket: String,
+    service: String,
 }
 
 impl ObjectStorage {
@@ -34,6 +35,7 @@ impl ObjectStorage {
             client,
             sessions: Arc::new(Mutex::new(HashMap::new())),
             bucket: cfg.app.get_bucket().to_string(),
+            service: cfg.storage.service.to_string(),
         };
 
         Ok(object_storage)
@@ -134,10 +136,7 @@ impl ObjectStorage {
         Ok(etag)
     }
 
-    pub async fn complete_upload(
-        &self,
-        upload_id: &str,
-    ) -> Result<Option<String>, ObjectStorageError> {
+    pub async fn complete_upload(&self, upload_id: &str) -> Result<String, ObjectStorageError> {
         let (key, locked_parts) = {
             let sessions = self
                 .sessions
@@ -181,6 +180,8 @@ impl ObjectStorage {
 
         sessions.remove(upload_id);
 
-        Ok(response.location)
+        let location = response.key.unwrap_or(key.to_string());
+        let bucket = response.bucket.unwrap_or(self.bucket.clone());
+        Ok(crate::get_s3_url(&self.service, &bucket, &location))
     }
 }
