@@ -1,6 +1,3 @@
--- Categories migration based on organized taxonomy
--- Insert parent categories first, then children
-
 -- Parent categories
 INSERT INTO categories (name, parent_id, description) VALUES
 ('formal', NULL, 'Formal sciences including mathematics, logic, and statistics'),

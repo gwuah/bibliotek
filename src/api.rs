@@ -1,4 +1,5 @@
-use crate::db::{Book, MetadataAggregate};
+use crate::db::*;
+use crate::model::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]

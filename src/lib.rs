@@ -11,6 +11,7 @@ pub mod config;
 pub mod db;
 pub mod error;
 pub mod handler;
+pub mod model;
 pub mod s3;
 
 pub fn internal_error<E: std::error::Error>(err: E) -> (StatusCode, String) {
