@@ -39,13 +39,8 @@ class AsciiTreeManager {
     );
 
     expandableItems.forEach((item) => {
-      // Add class based on number of children for proper line height
-      const subList = item.querySelector(".sub-list");
-      const childCount = subList.querySelectorAll("li").length;
-      item.classList.add(`children-${childCount}`);
-
-      const treeItem = item.querySelector(".tree-item");
-      treeItem.addEventListener("click", (e) => {
+      // const treeItem = item.querySelector("");
+      item.addEventListener("click", (e) => {
         e.preventDefault();
         this.toggleExpansion(item);
       });
@@ -83,22 +78,11 @@ class AsciiTreeManager {
         }
       }, 300);
     }
-
-    // ASCII lines are now handled by CSS automatically
   }
 
-  updateAsciiLines() {
-    // ASCII lines are now handled purely by CSS
-    // This method can be used for any additional dynamic adjustments if needed
-    // Currently no dynamic line creation is necessary
-  }
-
-  // Method to dynamically adjust line lengths when content changes
-  recalculateLines() {
-    // Wait for any ongoing transitions to complete
-    setTimeout(() => {
-      this.updateAsciiLines();
-    }, 350);
+  // Public method to refresh the tree structure (useful if content is dynamically added)
+  refresh() {
+    this.initializeTree();
   }
 }
 

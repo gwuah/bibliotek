@@ -58,17 +58,20 @@ body {
 }
 
 #aggregates-container {
-  border: 1px solid black;
+  border: 1px solid #ccc;
   width: max-content;
-  padding: 100px;
-  /* width: 100%; */
+  padding: 20px;
+  background-color: #fafafa;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .ascii-tree {
   font-family: "Courier New", monospace;
   font-size: 14px;
-  line-height: 1.2;
+  line-height: 1.4;
   color: #333;
+  user-select: none;
 }
 
 .ascii-tree ul {
@@ -81,27 +84,23 @@ body {
   margin: 0;
   padding: 0;
   display: none;
-  transition: all 0.3s ease;
+  transition: opacity 0.3s ease, transform 0.3s ease;
   position: relative;
+  opacity: 0;
+  transform: translateY(-10px);
 }
 
 .ascii-tree .expandable[data-expanded="true"] .sub-list {
   display: block;
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .ascii-tree li {
   margin: 0;
   padding: 0;
   position: relative;
-  line-height: 0.9;
-}
-
-.ascii-tree .tree-item {
-  display: block;
-  padding: 1px 0;
-  cursor: pointer;
-  font-family: "Courier New", monospace;
-  line-height: 1.2;
+  line-height: 1.4;
 }
 
 .ascii-tree .expand-icon {
@@ -124,46 +123,49 @@ body {
 .ascii-tree .sub-list li .content {
   display: block;
   padding: 1px 0;
-  margin-left: 3ch;
-  line-height: 1.2;
+  margin-left: 24px;
+  line-height: 1.4;
 }
 
-/* ASCII tree characters for sub-items */
-.ascii-tree .sub-list li::before {
-  content: "├─ ";
+/* Tree lines using CSS borders instead of ASCII characters */
+.ascii-tree .sub-list {
+  position: relative;
+  left: 30px;
+}
+
+/* Vertical line from parent to children */
+.ascii-tree .expandable[data-expanded="true"]::after {
+  content: "";
   position: absolute;
-  left: 0;
-  top: 1px;
-  font-family: "Courier New", monospace;
-  color: #333;
+  left: 8px;
+  top: 1.4em;
+  height: calc(100% - 2.1em);
+  width: 1px;
+  border-left: 1px solid #666;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Horizontal connecting line for each child */
+.ascii-tree .sub-list li::before {
+  content: "";
+  position: absolute;
+  left: 0px;
+  top: 0.7em;
+  width: 16px;
+  height: 1px;
+  border-top: 1px solid #666;
   z-index: 2;
 }
 
-.ascii-tree .sub-list li:last-child::before {
-  content: "└─ ";
-}
-
-/* Vertical line connecting parent to children using ASCII character */
-.ascii-tree .expandable[data-expanded="true"]::after {
+/* Vertical continuation line for children (except last child) */
+.ascii-tree .sub-list li:not(:last-child)::after {
+  content: "";
   position: absolute;
-  left: 0;
-  top: 1.2em;
-  font-family: "Courier New", monospace;
-  color: #333;
-  line-height: 1.2;
+  left: -0px;
+  top: 0.7em;
+  bottom: -0.7em;
+  width: 1px;
+  border-left: 1px solid #666;
   z-index: 1;
-  white-space: pre;
-}
-
-/* ASCII vertical lines based on number of children */
-/* .ascii-tree .expandable[data-expanded="true"].children-1::after { content: "│"; }
-.ascii-tree .expandable[data-expanded="true"].children-2::after { content: "│\A│"; }
-.ascii-tree .expandable[data-expanded="true"].children-3::after { content: "│\A│\A│"; }
-.ascii-tree .expandable[data-expanded="true"].children-4::after { content: "│\A│\A│\A│"; }
-.ascii-tree .expandable[data-expanded="true"].children-5::after { content: "│\A│\A│\A│\A│"; }
-.ascii-tree .expandable[data-expanded="true"].children-6::after { content: "│\A│\A│\A│\A│\A│"; } */
-
-/* Hover effects */
-.ascii-tree .tree-item:hover {
-  background-color: #f5f5f5;
 }
