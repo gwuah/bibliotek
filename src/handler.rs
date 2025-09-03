@@ -255,43 +255,6 @@ pub async fn upload(
         });
     }
 
-    // match upload_state.as_str() {
-    //     "init" => {
-    //         let init = handle_init(&state, upload_state).await.map_err(|e| {
-    //             tracing::error!("failed to initialize upload with s3: {}", e);
-    //             return bad_request("failed to init storage");
-    //         });
-    //         let init = init?;
-    //     }
-    //     _ => {
-    //         tracing::error!("invalid upload state");
-    //         return bad_request("invalid upload state");
-    //     }
-    // }
-
-    // let mut uploaded_files = Vec::new();
-
-    // while let Ok(Some(field)) = multipart.next_field().await {
-    //     let name = field.name().unwrap_or("unknown").to_string();
-    //     println!("name: {}", name);
-    //     let data = match field.bytes().await {
-    //         Ok(bytes) => bytes,
-    //         Err(e) => {
-    //             tracing::error!("Failed to read field bytes: {}", e);
-    //             continue;
-    //         }
-    //     };
-
-    //     tracing::info!("Processing file: {} ({} bytes)", name, data.len());
-
-    //     // For now, just log the file info
-    //     uploaded_files.push(format!("{}: {} bytes", name, data.len()));
-    // }
-
-    // Json(APIResponse::new(
-    //     Some("Files uploaded successfully"),
-    //     Some(vec![Book::new(name, data.len())]),
-    // ))
     (
         StatusCode::OK,
         Json(APIResponse::new_from_msg("Files uploaded successfully")),

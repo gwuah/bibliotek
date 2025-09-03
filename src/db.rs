@@ -1,13 +1,21 @@
 use crate::config::Config;
 use crate::handler::HandlerParams;
-use anyhow::{Context, Result};
+use anyhow::Result;
 use libsql::{Builder, Connection};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 use std::env;
 
-const SCHEMA_SQL: &str = include_str!("schema.sql");
+// const SCHEMA_SQL: &str = include_str!("schema.sql");
+
+const MIGRATIONS: &[(&str, &str)] = &[
+    ("001_schema.sql", include_str!("migrations/001_schema.sql")),
+    (
+        "002_categories.sql",
+        include_str!("migrations/002_categories.sql"),
+    ),
+];
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Book {
@@ -67,19 +75,22 @@ fn get_home_dir() -> Result<String> {
 
 impl Database {
     pub async fn new(cfg: &Config) -> Result<Self> {
-        let home = get_home_dir()?;
-        let path = Path::new::<String>(&home).join(cfg.app.get_db());
+        let path = Path::new(&get_home_dir()?).join(cfg.app.get_db());
         let conn = Builder::new_local(path).build().await?.connect()?;
         let _ = conn
             .query("SELECT 1", ())
             .await
-            .context("failed to connect to databas")?;
+            .map_err(|e| anyhow::anyhow!("failed to connect to database: {e}"))?;
         tracing::debug!("established connection to db!");
 
-        conn.execute_batch(SCHEMA_SQL)
-            .await
-            .context("failed to execute schema.sql")?;
-        tracing::info!("db migration complete");
+        for (filename, sql) in MIGRATIONS {
+            tracing::info!("executing migration: {}", filename);
+            conn.execute_batch(sql)
+                .await
+                .map_err(|e| anyhow::anyhow!("failed to execute migration {filename}: {e}"))?;
+        }
+
+        tracing::info!("db migrations complete");
 
         let instance = Database { conn };
 
@@ -102,7 +113,9 @@ impl Database {
 
         while let Some(row) = rows.next().await? {
             let book_id: i32 = row.get(0)?;
-            let author = if let (Some(author_id), Some(author_name)) = (row.get::<Option<i32>>(5)?, row.get::<Option<String>>(6)?) {
+            let author = if let (Some(author_id), Some(author_name)) =
+                (row.get::<Option<i32>>(5)?, row.get::<Option<String>>(6)?)
+            {
                 Some(Author {
                     id: author_id,
                     name: author_name,
@@ -163,7 +176,8 @@ impl Database {
         let mut rows = self
             .conn
             .query(
-                "SELECT authors.id, authors.name, COUNT(books.id) as book_count FROM authors LEFT JOIN books ON authors.id = books.author_id GROUP BY authors.id, authors.name HAVING book_count > 0 ORDER BY book_count DESC",
+                "SELECT authors.id, authors.name,
+                 COUNT(books.id) as book_count FROM authors LEFT JOIN books ON authors.id = books.author_id GROUP BY authors.id, authors.name HAVING book_count > 0 ORDER BY book_count DESC",
                 (),
             )
             .await?;
