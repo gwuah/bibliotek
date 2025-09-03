@@ -2,6 +2,6 @@
    "editor.inlayHints.enabled": "offUnlessPressed", 
    "rust-analyzer.lens.enable": false,
    "[sql]": {
-      "editor.formatOnSave": false
+      // "editor.formatOnSave": false
    }
 }

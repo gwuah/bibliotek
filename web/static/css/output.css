@@ -7,10 +7,8 @@
       "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
       "Courier New", monospace;
-    --spacing: 0.25rem;
-    --text-3xl: 1.875rem;
-    --text-3xl--line-height: calc(2.25 / 1.875);
-    --font-weight-bold: 700;
+    --default-transition-duration: 150ms;
+    --default-transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     --default-font-family: var(--font-sans);
     --default-mono-font-family: var(--font-mono);
   }
@@ -188,35 +186,25 @@
   .mx-auto {
     margin-inline: auto;
   }
-  .mb-6 {
-    margin-bottom: calc(var(--spacing) * 6);
-  }
   .block {
     display: block;
   }
   .grid {
     display: grid;
   }
-  .space-y-8 {
-    :where(& > :not(:last-child)) {
-      --tw-space-y-reverse: 0;
-      margin-block-start: calc(calc(var(--spacing) * 8) * var(--tw-space-y-reverse));
-      margin-block-end: calc(calc(var(--spacing) * 8) * calc(1 - var(--tw-space-y-reverse)));
-    }
+  .inline {
+    display: inline;
   }
-  .p-4 {
-    padding: calc(var(--spacing) * 4);
-  }
-  .text-3xl {
-    font-size: var(--text-3xl);
-    line-height: var(--tw-leading, var(--text-3xl--line-height));
-  }
-  .font-bold {
-    --tw-font-weight: var(--font-weight-bold);
-    font-weight: var(--font-weight-bold);
+  .transform {
+    transform: var(--tw-rotate-x,) var(--tw-rotate-y,) var(--tw-rotate-z,) var(--tw-skew-x,) var(--tw-skew-y,);
   }
   .filter {
     filter: var(--tw-blur,) var(--tw-brightness,) var(--tw-contrast,) var(--tw-grayscale,) var(--tw-hue-rotate,) var(--tw-invert,) var(--tw-saturate,) var(--tw-sepia,) var(--tw-drop-shadow,);
+  }
+  .transition {
+    transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter, display, visibility, content-visibility, overlay, pointer-events;
+    transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
+    transition-duration: var(--tw-duration, var(--default-transition-duration));
   }
 }
 @font-face {
@@ -243,55 +231,106 @@
 body {
   font-family: et-book, Palatino, "Palatino Linotype", "Palatino LT STD", "Book Antiqua", Georgia, serif;
 }
-.tree {
-  font-family: monospace;
-  font-size: 14px;
-  line-height: 1.4;
+#aggregates-container {
+  border: 1px solid black;
+  width: max-content;
+  padding: 100px;
 }
-.tree ul {
+.ascii-tree {
+  font-family: "Courier New", monospace;
+  font-size: 14px;
+  line-height: 1.2;
+  color: #333;
+}
+.ascii-tree ul {
   list-style: none;
   margin: 0;
   padding: 0;
+}
+.ascii-tree .sub-list {
+  margin: 0;
+  padding: 0;
+  display: none;
+  transition: all 0.3s ease;
   position: relative;
 }
-.tree ul ul {
-  margin-left: 1.5rem;
+.ascii-tree .expandable[data-expanded="true"] .sub-list {
+  display: block;
 }
-.tree li {
+.ascii-tree li {
+  margin: 0;
+  padding: 0;
+  position: relative;
+  line-height: 0.9;
+}
+.ascii-tree .tree-item {
+  display: block;
+  padding: 1px 0;
+  cursor: pointer;
+  font-family: "Courier New", monospace;
+  line-height: 1.2;
+}
+.ascii-tree .expand-icon {
+  display: inline;
+  margin-right: 1ch;
+  font-weight: normal;
+}
+.ascii-tree .content {
+  display: inline;
+}
+.ascii-tree .sub-list li {
   position: relative;
   margin: 0;
-  padding: 0.2rem 0 0.2rem 1.5rem;
+  padding: 0;
 }
-.tree li::before {
-  content: '';
+.ascii-tree .sub-list li .content {
+  display: block;
+  padding: 1px 0;
+  margin-left: 3ch;
+  line-height: 1.2;
+}
+.ascii-tree .sub-list li::before {
+  content: "├─ ";
   position: absolute;
-  left: -0.5rem;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  background: #666;
+  left: 0;
+  top: 1px;
+  font-family: "Courier New", monospace;
+  color: #333;
+  z-index: 2;
 }
-.tree li::after {
-  content: '';
+.ascii-tree .sub-list li:last-child::before {
+  content: "└─ ";
+}
+.ascii-tree .expandable[data-expanded="true"]::after {
   position: absolute;
-  left: -0.5rem;
-  top: 0.9rem;
-  width: 1rem;
-  height: 1px;
-  background: #666;
+  left: 0;
+  top: 1.2em;
+  font-family: "Courier New", monospace;
+  color: #333;
+  line-height: 1.2;
+  z-index: 1;
+  white-space: pre;
 }
-.tree li:last-child::before {
-  height: 0.9rem;
+.ascii-tree .tree-item:hover {
+  background-color: #f5f5f5;
 }
-.tree > ul > li::before, .tree > ul > li::after {
-  display: none;
-}
-@property --tw-space-y-reverse {
+@property --tw-rotate-x {
   syntax: "*";
   inherits: false;
-  initial-value: 0;
 }
-@property --tw-font-weight {
+@property --tw-rotate-y {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-rotate-z {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-skew-x {
+  syntax: "*";
+  inherits: false;
+}
+@property --tw-skew-y {
   syntax: "*";
   inherits: false;
 }
@@ -351,8 +390,11 @@ body {
 @layer properties {
   @supports ((-webkit-hyphens: none) and (not (margin-trim: inline))) or ((-moz-orient: inline) and (not (color:rgb(from red r g b)))) {
     *, ::before, ::after, ::backdrop {
-      --tw-space-y-reverse: 0;
-      --tw-font-weight: initial;
+      --tw-rotate-x: initial;
+      --tw-rotate-y: initial;
+      --tw-rotate-z: initial;
+      --tw-skew-x: initial;
+      --tw-skew-y: initial;
       --tw-blur: initial;
       --tw-brightness: initial;
       --tw-contrast: initial;

@@ -1,62 +1,71 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Bibliotek</title>
     <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
-    <link rel="stylesheet" href="css/output.css">
-</head>
-<body>
-
-    <div class="container mx-auto p-4 space-y-8">
-        <h1 class="text-3xl font-bold mb-6">Simple Tree Outline</h1>
-        
-        <div class="tree">
-            <ul>
-                <li>bibliotek
-                    <ul>
-                        <li>src
-                            <ul>
-                                <li>main.rs</li>
-                                <li>lib.rs</li>
-                                <li>migrations
-                                    <ul>
-                                        <li>001_schema.sql</li>
-                                        <li>002_categories.sql</li>
-                                        <li>003_seed_db.sql</li>
-                                    </ul>
-                                </li>
-                            </ul>
-                        </li>
-                        <li>web
-                            <ul>
-                                <li>static
-                                    <ul>
-                                        <li>index.html</li>
-                                        <li>css
-                                            <ul>
-                                                <li>style.css</li>
-                                                <li>output.css</li>
-                                            </ul>
-                                        </li>
-                                    </ul>
-                                </li>
-                                <li>package.json</li>
-                            </ul>
-                        </li>
-                        <li>Cargo.toml</li>
-                        <li>readme.md</li>
-                    </ul>
-                </li>
+    <link rel="stylesheet" href="css/output.css" />
+  </head>
+  <body>
+    <div class="container mx-auto">
+      <div id="aggregates-container" class="ascii-tree">
+        <ul id="aggregates">
+          <li class="expandable" data-expanded="false">
+            <div class="tree-item">
+              <span class="expand-icon">+</span>
+              <span class="content">authors (4)</span>
+            </div>
+            <ul class="sub-list">
+              <li><span class="content">Jane Austen (3)</span></li>
+              <li><span class="content">Charles Dickens (2)</span></li>
+              <li><span class="content">George Orwell (1)</span></li>
+              <li><span class="content">Virginia Woolf (1)</span></li>
             </ul>
-        </div>
+          </li>
+          <li class="expandable" data-expanded="false">
+            <div class="tree-item">
+              <span class="expand-icon">+</span>
+              <span class="content">tags (15)</span>
+            </div>
+            <ul class="sub-list">
+              <li><span class="content">fiction (8)</span></li>
+              <li><span class="content">classics (5)</span></li>
+              <li><span class="content">romance (3)</span></li>
+              <li><span class="content">dystopian (2)</span></li>
+              <li><span class="content">modernist (1)</span></li>
+            </ul>
+          </li>
+          <li class="expandable" data-expanded="false">
+            <div class="tree-item">
+              <span class="expand-icon">+</span>
+              <span class="content">ratings (5)</span>
+            </div>
+            <ul class="sub-list">
+              <li><span class="content">5 stars (6)</span></li>
+              <li><span class="content">4 stars (4)</span></li>
+              <li><span class="content">3 stars (2)</span></li>
+              <li><span class="content">2 stars (1)</span></li>
+              <li><span class="content">1 star (0)</span></li>
+            </ul>
+          </li>
+          <li class="expandable" data-expanded="false">
+            <div class="tree-item">
+              <span class="expand-icon">+</span>
+              <span class="content">categories (10)</span>
+            </div>
+            <ul class="sub-list">
+              <li><span class="content">Literature (7)</span></li>
+              <li><span class="content">Science Fiction (3)</span></li>
+              <li><span class="content">Biography (2)</span></li>
+              <li><span class="content">History (1)</span></li>
+            </ul>
+          </li>
+        </ul>
+      </div>
     </div>
 
-
-  
     <script src="js/setup.js"></script>
-</body>
+    <script src="js/components.js"></script>
+  </body>
 </html>
-
-
