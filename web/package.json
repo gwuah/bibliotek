@@ -8,7 +8,7 @@
   "main": "simple.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build:css": "npx @tailwindcss/cli -i ./css/style.css -o ./css/output.css --watch"
+    "build:css": "npx @tailwindcss/cli -i static/css/style.css -o static/css/output.css --watch --content 'static/**/*.{html,js}'"
   },
   "dependencies": {
     "@tailwindcss/cli": "^4.1.12",
