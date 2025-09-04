@@ -245,7 +245,7 @@ body {
 .books-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 40px 0px;
+  gap: 10px 0px;
   padding: 20px;
 }
 .book-item {
