@@ -118,16 +118,52 @@ class Bibliotek {
       const bookItem = document.createElement("div");
       bookItem.classList.add("book-item");
 
-      bookItem.innerHTML = `
-        <div class="book-cover">
-          <img src="${book.cover_url}" alt="${book.title}" loading="lazy" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDEwMCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxMDAiIGhlaWdodD0iMTUwIiBmaWxsPSIjZjNmNGY2Ii8+CjxwYXRoIGQ9Ik00NSA2MEw1NSA2MEw1NSA3MEw0NSA3MFoiIGZpbGw9IiNkMWQ1ZGIiLz4KPHN2Zz4K'" />
-        </div>
-        <div class="book-info">
-          <h3 class="book-title">${book.title}</h3>
-          <p class="book-pages">${book.pages} pages</p>
-        </div>
+      // Create skeleton placeholder
+      const skeleton = document.createElement("div");
+      skeleton.classList.add("skeleton", "book-cover-skeleton");
+
+      // Create book cover container
+      const bookCover = document.createElement("div");
+      bookCover.classList.add("book-cover");
+      bookCover.appendChild(skeleton);
+
+      // Create image element
+      const img = document.createElement("img");
+      img.src = book.cover_url;
+      img.alt = book.title;
+      img.loading = "lazy";
+      img.classList.add("loading");
+
+      // Handle image load success
+      img.onload = () => {
+        // img.classList.add("book-cover-img");
+        img.classList.add("loaded");
+        img.classList.remove("loading");
+        skeleton.remove();
+      };
+
+      // Handle image load error
+      img.onerror = () => {
+        img.src =
+          "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDEwMCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxMDAiIGhlaWdodD0iMTUwIiBmaWxsPSIjZjNmNGY2Ii8+CjxwYXRoIGQ9Ik00NSA2MEw1NSA2MEw1NSA3MEw0NSA3MFoiIGZpbGw9IiNkMWQ1ZGIiLz4KPHN2Zz4K";
+        img.classList.remove("loading");
+        img.classList.add("loaded");
+        // img.classList.add("book-cover-img");
+        skeleton.remove();
+      };
+
+      bookCover.appendChild(img);
+
+      const bookInfo = document.createElement("div");
+      bookInfo.classList.add("book-info");
+      bookInfo.innerHTML = `
+        <h3 class="book-title">${book.title}</h3>
+        <p class="book-pages">${book.pages} pages</p>
       `;
 
+      // Assemble book item
+      bookItem.appendChild(bookCover);
+      bookItem.appendChild(bookInfo);
       booksGrid.appendChild(bookItem);
     });
 

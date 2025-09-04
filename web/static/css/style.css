@@ -77,7 +77,7 @@ body {
 .books-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 10px 0px;
+  gap: 20px 0px;
   padding: 20px;
 }
 
@@ -97,11 +97,14 @@ body {
 }
 
 .book-cover {
+  width: 120px;
+  height: 180px;
   margin-bottom: 10px;
   width: max-content;
+  /* border: 1px solid #ccc; */
 }
 
-.book-cover img {
+img {
   width: 120px;
   height: 180px;
   object-fit: cover;
@@ -112,7 +115,7 @@ body {
 .book-info {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 2px;
 }
 
 .book-title {
@@ -127,6 +130,37 @@ body {
   font-size: 12px;
   color: #666;
   margin: 0;
+}
+
+/* Skeleton Loading Animation */
+.skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.book-cover-skeleton {
+  width: 120px;
+  height: 180px;
+  border-radius: 4px;
+}
+
+.book-cover img.loading {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.book-cover img.loaded {
+  opacity: 1;
 }
 
 /* ASCII TREE */
