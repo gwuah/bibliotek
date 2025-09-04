@@ -263,7 +263,7 @@ body {
 }
 .books-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 10px 0px;
   padding: 20px;
 }
@@ -273,7 +273,6 @@ body {
   align-items: left;
   text-align: left;
   background: #fff;
-  border: 1px solid #ccc;
 }
 .book-cover:hover {
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
@@ -306,9 +305,6 @@ body {
   font-size: 12px;
   color: #666;
   margin: 0;
-}
-.hidden {
-  display: none;
 }
 .expand-icon {
   display: inline-block;

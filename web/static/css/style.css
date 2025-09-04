@@ -76,7 +76,7 @@ body {
 
 .books-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 10px 0px;
   padding: 20px;
 }
@@ -87,7 +87,8 @@ body {
   align-items: left;
   text-align: left;
   background: #fff;
-  border: 1px solid #ccc;
+  /* border: 1px solid #ccc; */
+  /* width: 150px; */
 }
 
 .book-cover:hover {
@@ -128,10 +129,7 @@ body {
   margin: 0;
 }
 
-.hidden {
-  display: none;
-}
-
+/* ASCII TREE */
 .expand-icon {
   display: inline-block;
 }
