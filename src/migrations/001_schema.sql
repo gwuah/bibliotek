@@ -4,6 +4,8 @@ CREATE TABLE IF NOT EXISTS books (
     url TEXT NOT NULL UNIQUE,
     cover_url TEXT UNIQUE,
     ratings INTEGER,
+    description TEXT,
+    pages INTEGER,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
@@ -63,5 +65,7 @@ CREATE TABLE IF NOT EXISTS book_tags (
 );
 
 CREATE INDEX IF NOT EXISTS idx_book_author ON book_authors (book_id, author_id);
+
 CREATE INDEX IF NOT EXISTS idx_book_category ON book_categories (book_id, category_id);
+
 CREATE INDEX IF NOT EXISTS idx_book_tag ON book_tags (book_id, tag_id);

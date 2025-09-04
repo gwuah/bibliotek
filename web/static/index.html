@@ -9,7 +9,7 @@
   </head>
   <body class="p-10">
     <div class="flex flex-row gap-10">
-      <div class="flex flex-col gap-5">
+      <div class="flex flex-col gap-5 w-[240px]">
         <div>
           <input
             type="text"
@@ -19,14 +19,9 @@
           />
         </div>
         <div>
-          <!-- <input
-            type="file"
-            id="file-input"
-            placeholder="Choose a file to upload"
-            class="w-full border-1 border-[#ccc] pl-2 placeholder:text-center"
-          /> -->
-
-          <div class="flex items-center justify-center w-full bg-[#f0f0f0]">
+          <div
+            class="flex items-center justify-center w-full bg-[#f0f0f0] hover:bg-[#e0e0e0]"
+          >
             <label
               for="dropzone-file"
               class="flex flex-col items-center justify-center w-full h-34 border-1 border-[#ccc] cursor-pointer"
@@ -45,7 +40,7 @@
           </div>
           <button
             id="upload-button"
-            class="w-full hidden border-1 border-[#ccc] text-sm mt-1 py-1 cursor-pointer bg-[#f0f0f0]"
+            class="w-full hidden border-1 border-[#ccc] text-sm mt-1 py-1 cursor-pointer bg-[#f0f0f0] hover:bg-[#e0e0e0]"
           >
             Upload
           </button>

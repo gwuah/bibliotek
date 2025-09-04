@@ -210,6 +210,9 @@
   .w-8 {
     width: calc(var(--spacing) * 8);
   }
+  .w-\[240px\] {
+    width: 240px;
+  }
   .w-full {
     width: 100%;
   }
@@ -273,6 +276,13 @@
   .placeholder\:text-center {
     &::placeholder {
       text-align: center;
+    }
+  }
+  .hover\:bg-\[\#e0e0e0\] {
+    &:hover {
+      @media (hover: hover) {
+        background-color: #e0e0e0;
+      }
     }
   }
 }

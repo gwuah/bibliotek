@@ -6,7 +6,12 @@ pub struct Book {
     pub title: String,
     pub download_url: String,
     pub cover_url: String,
-    pub ratings: Option<i32>,
+    pub ratings: i32,
+    pub author_ids: Vec<String>,
+    pub tag_ids: Vec<String>,
+    pub category_ids: Vec<String>,
+    pub description: String,
+    pub pages: i32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

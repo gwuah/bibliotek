@@ -1,7 +1,7 @@
 use crate::config::Config;
 use crate::handler::HandlerParams;
 use crate::model::*;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use libsql::{Builder, Connection};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -62,28 +62,137 @@ impl Database {
         Ok(instance)
     }
 
-    pub async fn get_books(&self, params: HandlerParams) -> Result<Vec<Book>> {
-        Ok(vec![])
+    fn split_byte_string(
+        bytes: Vec<u8>,
+        delimiter: u8,
+    ) -> Result<Vec<String>, std::str::Utf8Error> {
+        bytes
+            .split(|&b| b == delimiter)
+            .filter(|chunk| !chunk.is_empty())
+            .map(|chunk| std::str::from_utf8(chunk).map(|s| s.trim().to_string()))
+            .collect()
     }
 
-    pub async fn get_book_tags(&self, book_id: i32) -> Result<Vec<Tag>> {
-        let mut rows = self
-            .conn
-            .query(
-                "SELECT tags.id, tags.name FROM tags INNER JOIN book_tags ON tags.id = book_tags.tag_id WHERE book_tags.book_id = ?",
-                [book_id],
-            )
-            .await?;
+    fn split_comma_separated_string(s: String) -> Vec<String> {
+        s.split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect()
+    }
 
-        let mut tags: Vec<Tag> = vec![];
+    pub async fn get_books(&self, params: HandlerParams) -> Result<Vec<Book>> {
+        let last_n_books = r#"
+SELECT 
+    books.id as book_id, 
+    books.title, 
+    books.url, 
+    books.cover_url, 
+    books.ratings,
+    books.description,
+    books.pages,
+    GROUP_CONCAT(DISTINCT CAST(authors.id AS TEXT)) as author_ids,
+    GROUP_CONCAT(DISTINCT CAST(tags.id AS TEXT)) as tag_ids,
+    GROUP_CONCAT(DISTINCT CAST(categories.id AS TEXT)) as category_ids
+FROM books 
+LEFT JOIN book_authors ON book_authors.book_id = books.id
+LEFT JOIN authors ON authors.id = book_authors.author_id
+LEFT JOIN book_tags ON book_tags.book_id = books.id
+LEFT JOIN tags ON tags.id = book_tags.tag_id
+LEFT JOIN book_categories ON book_categories.book_id = books.id
+LEFT JOIN categories ON categories.id = book_categories.category_id
+GROUP BY books.id, books.title, books.url, books.cover_url, books.ratings
+ORDER BY book_id
+LIMIT ? OFFSET ?
+"#;
+
+        let search_books = r#"
+SELECT 
+    books.id as book_id, 
+    books.title, 
+    books.url, 
+    books.cover_url, 
+    books.ratings,
+    books.description,
+    books.pages,
+    GROUP_CONCAT(DISTINCT CAST(authors.id AS TEXT)) as author_ids,
+    GROUP_CONCAT(DISTINCT CAST(tags.id AS TEXT)) as tag_ids,
+    GROUP_CONCAT(DISTINCT CAST(categories.id AS TEXT)) as category_ids
+FROM books 
+LEFT JOIN book_authors ON book_authors.book_id = books.id
+LEFT JOIN authors ON authors.id = book_authors.author_id
+LEFT JOIN book_tags ON book_tags.book_id = books.id
+LEFT JOIN tags ON tags.id = book_tags.tag_id
+LEFT JOIN book_categories ON book_categories.book_id = books.id
+LEFT JOIN categories ON categories.id = book_categories.category_id
+GROUP BY books.id, books.title, books.url, books.cover_url, books.ratings
+WHERE books.title LIKE ? OR authors.name LIKE ? OR tags.name LIKE ? OR categories.name LIKE ?
+ORDER BY book_id
+LIMIT ? OFFSET ?
+"#;
+
+        let mut rows = if let Some(search) = &params.query {
+            self.conn
+                .query(
+                    search_books,
+                    (
+                        format!("%{}%", search),
+                        format!("%{}%", search),
+                        format!("%{}%", search),
+                        format!("%{}%", search),
+                        params.limit as i32,
+                        params.offset as i32,
+                    ),
+                )
+                .await?
+        } else {
+            self.conn
+                .query(last_n_books, (params.limit as i32, params.offset as i32))
+                .await?
+        };
+        let mut books: Vec<Book> = vec![];
+
         while let Some(row) = rows.next().await? {
-            tags.push(Tag {
-                id: row.get(0)?,
-                name: row.get(1)?,
+            println!("Column {:?}", row.get_value(0));
+            // println!("Column {:?}", row.get_value(1));
+            // println!("Column {:?}", row.get_value(2));
+            // println!("Column {:?}", row.get_value(3));
+            // println!("Column {:?}", row.get_value(4));
+            // println!("Column {:?}", row.get_value(5));
+            // println!("Column {:?}", row.get_value(6));
+            // println!("Column {:?}", row.get_value(7));
+            // println!("Column {:?}", row.get_value(8));
+            // println!("Column {:?}", row.get_value(9));
+
+            let book_id: i32 = row.get(0)?;
+            let book_title: String = row.get(1)?;
+            let book_url: String = row.get(2)?;
+            let book_cover_url: String = row.get(3)?;
+            let book_ratings: i32 = row.get(4)?;
+            let book_description: String = row.get(5)?;
+            let book_pages: i32 = row.get(6)?;
+            let book_authors_ids: String = row.get::<String>(7)?;
+            let book_tags_ids: String = row.get::<String>(8)?;
+            let book_categories_ids: String = row.get::<String>(9)?;
+
+            let book_authors = Self::split_comma_separated_string(book_authors_ids);
+            let book_tags = Self::split_comma_separated_string(book_tags_ids);
+            let book_categories = Self::split_comma_separated_string(book_categories_ids);
+
+            books.push(Book {
+                id: book_id,
+                title: book_title,
+                download_url: book_url,
+                cover_url: book_cover_url,
+                ratings: book_ratings,
+                description: book_description,
+                pages: book_pages,
+                author_ids: book_authors,
+                tag_ids: book_tags,
+                category_ids: book_categories,
             });
         }
 
-        Ok(tags)
+        Ok(books)
     }
 
     pub async fn get_metadata_aggregates(&self) -> Result<MetadataAggregate> {
