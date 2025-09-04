@@ -267,6 +267,36 @@ body {
   border-top: 1px solid black;
   z-index: 2;
 }
+.ascii-tree .sub-list li:not(:last-child):not(:first-child)::after {
+  content: "";
+  position: absolute;
+  left: -27.99px;
+  top: -2px;
+  height: 100%;
+  width: 2px;
+  border-left: 1px solid black;
+  z-index: 1;
+}
+.ascii-tree .sub-list li:first-child::after {
+  content: "";
+  position: absolute;
+  left: -28px;
+  top: -7px;
+  height: 30px;
+  width: 2px;
+  border-left: 1px solid black;
+  z-index: 1;
+}
+.ascii-tree .sub-list li:last-child::after {
+  content: "";
+  position: absolute;
+  left: -28px;
+  bottom: -5px;
+  height: 32px;
+  width: 2px;
+  border-left: 1px solid black;
+  z-index: 1;
+}
 @property --tw-blur {
   syntax: "*";
   inherits: false;

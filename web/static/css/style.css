@@ -120,13 +120,35 @@ body {
 }
 
 /* Vertical continuation line for children (except last child) */
-/* .ascii-tree .sub-list li:not(:last-child)::after {
+.ascii-tree .sub-list li:not(:last-child):not(:first-child)::after {
   content: "";
   position: absolute;
-  left: -20px;
-  top: 0.5em;
-  bottom: -0.7em;
-  width: 1px;
+  left: -27.99px;
+  top: -2px;
+  height: 100%;
+  width: 2px;
   border-left: 1px solid black;
   z-index: 1;
-} */
+}
+
+.ascii-tree .sub-list li:first-child::after {
+  content: "";
+  position: absolute;
+  left: -28px;
+  top: -7px;
+  height: 30px;
+  width: 2px;
+  border-left: 1px solid black;
+  z-index: 1;
+}
+
+.ascii-tree .sub-list li:last-child::after {
+  content: "";
+  position: absolute;
+  left: -28px;
+  bottom: -5px;
+  height: 32px;
+  width: 2px;
+  border-left: 1px solid black;
+  z-index: 1;
+}
