@@ -191,14 +191,33 @@
   .hidden {
     display: none;
   }
+  .w-full {
+    width: 100%;
+  }
+  .flex-col {
+    flex-direction: column;
+  }
   .flex-row {
     flex-direction: row;
+  }
+  .gap-5 {
+    gap: calc(var(--spacing) * 5);
   }
   .gap-10 {
     gap: calc(var(--spacing) * 10);
   }
+  .border-1 {
+    border-style: var(--tw-border-style);
+    border-width: 1px;
+  }
+  .border-\[\#ccc\] {
+    border-color: #ccc;
+  }
   .p-10 {
     padding: calc(var(--spacing) * 10);
+  }
+  .pl-2 {
+    padding-left: calc(var(--spacing) * 2);
   }
   .filter {
     filter: var(--tw-blur,) var(--tw-brightness,) var(--tw-contrast,) var(--tw-grayscale,) var(--tw-hue-rotate,) var(--tw-invert,) var(--tw-saturate,) var(--tw-sepia,) var(--tw-drop-shadow,);
@@ -235,7 +254,7 @@ body {
   border: 1px solid #ccc;
 }
 #aggregates-container {
-  width: fit-content;
+  border: 1px solid #ccc;
   height: fit-content;
   padding: 10px;
 }
@@ -262,6 +281,7 @@ body {
 }
 .book-cover {
   margin-bottom: 10px;
+  width: max-content;
 }
 .book-cover img {
   width: 120px;
@@ -336,6 +356,11 @@ body {
   border-top: 1px solid black;
   z-index: 2;
 }
+@property --tw-border-style {
+  syntax: "*";
+  inherits: false;
+  initial-value: solid;
+}
 @property --tw-blur {
   syntax: "*";
   inherits: false;
@@ -392,6 +417,7 @@ body {
 @layer properties {
   @supports ((-webkit-hyphens: none) and (not (margin-trim: inline))) or ((-moz-orient: inline) and (not (color:rgb(from red r g b)))) {
     *, ::before, ::after, ::backdrop {
+      --tw-border-style: solid;
       --tw-blur: initial;
       --tw-brightness: initial;
       --tw-contrast: initial;

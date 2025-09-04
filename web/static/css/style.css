@@ -64,7 +64,8 @@ body {
 }
 
 #aggregates-container {
-  width: fit-content;
+  /* width: fit-content; */
+  border: 1px solid #ccc;
   height: fit-content;
   padding: 10px;
 }
@@ -96,6 +97,7 @@ body {
 
 .book-cover {
   margin-bottom: 10px;
+  width: max-content;
 }
 
 .book-cover img {
