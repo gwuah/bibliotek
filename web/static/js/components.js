@@ -1,81 +1,17 @@
-class ExpandFileIcon extends HTMLElement {
+class ExpandIcon extends HTMLElement {
   connectedCallback() {
-    this.innerHTML = `
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="16"
-        height="16"
-        fill="currentColor"
-        class="bi bi-plus-circle inline"
-        viewBox="0 0 16 16"
-      >
-        <path
-          d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"
-        />
-        <path
-          d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"
-        />
-      </svg>`;
-  }
-}
-customElements.define("expand-file-icon", ExpandFileIcon);
-
-class AsciiTreeManager {
-  constructor() {
-    this.initializeTree();
-  }
-
-  initializeTree() {
-    const expandableItems = document.querySelectorAll(
-      ".ascii-tree .expandable"
-    );
-
-    expandableItems.forEach((item) => {
-      item.addEventListener("click", (e) => {
-        e.preventDefault();
-        this.toggleExpansion(item);
-      });
-
-      const treeItems = item.querySelectorAll(".sub-list li");
-      treeItems.forEach((treeItem) => {
-        treeItem.addEventListener("click", (e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          console.log("treeItem clicked");
-          // this.toggleExpansion(item);
-        });
-      });
-    });
-  }
-
-  toggleExpansion(expandableItem) {
-    const isExpanded = expandableItem.dataset.expanded === "true";
-    const newState = !isExpanded;
-
-    // Update the data attribute
-    expandableItem.dataset.expanded = newState.toString();
-
-    // Update the expand icon
-    const expandIcon = expandableItem.querySelector(".expand-icon");
-    // expandIcon.textContent = newState ? "+" : "+";
-
-    // Get the sub-list
-    const subList = expandableItem.querySelector(".sub-list");
-
-    if (newState) {
-      subList.style.display = "block";
-    } else {
-      subList.style.display = "none";
-    }
-  }
-
-  // Public method to refresh the tree structure (useful if content is dynamically added)
-  refresh() {
-    this.initializeTree();
+    this.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="currentColor" class="bi bi-patch-plus-fill" viewBox="0 0 16 16">
+  <path d="M10.067.87a2.89 2.89 0 0 0-4.134 0l-.622.638-.89-.011a2.89 2.89 0 0 0-2.924 2.924l.01.89-.636.622a2.89 2.89 0 0 0 0 4.134l.637.622-.011.89a2.89 2.89 0 0 0 2.924 2.924l.89-.01.622.636a2.89 2.89 0 0 0 4.134 0l.622-.637.89.011a2.89 2.89 0 0 0 2.924-2.924l-.01-.89.636-.622a2.89 2.89 0 0 0 0-4.134l-.637-.622.011-.89a2.89 2.89 0 0 0-2.924-2.924l-.89.01zM8.5 6v1.5H10a.5.5 0 0 1 0 1H8.5V10a.5.5 0 0 1-1 0V8.5H6a.5.5 0 0 1 0-1h1.5V6a.5.5 0 0 1 1 0"/>
+</svg>`;
   }
 }
 
-// Initialize the ASCII tree manager when DOM is loaded
-document.addEventListener("DOMContentLoaded", () => {
-  window.asciiTreeManager = new AsciiTreeManager();
-});
+class MinusIcon extends HTMLElement {
+  connectedCallback() {
+    this.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="currentColor" class="bi bi-patch-minus-fill" viewBox="0 0 16 16">
+  <path d="M10.067.87a2.89 2.89 0 0 0-4.134 0l-.622.638-.89-.011a2.89 2.89 0 0 0-2.924 2.924l.01.89-.636.622a2.89 2.89 0 0 0 0 4.134l.637.622-.011.89a2.89 2.89 0 0 0 2.924 2.924l.89-.01.622.636a2.89 2.89 0 0 0 4.134 0l.622-.637.89.011a2.89 2.89 0 0 0 2.924-2.924l-.01-.89.636-.622a2.89 2.89 0 0 0 0-4.134l-.637-.622.011-.89a2.89 2.89 0 0 0-2.924-2.924l-.89.01zM6 7.5h4a.5.5 0 0 1 0 1H6a.5.5 0 0 1 0-1"/>
+</svg>`;
+  }
+}
+customElements.define("expand-icon", ExpandIcon);
+customElements.define("minus-icon", MinusIcon);

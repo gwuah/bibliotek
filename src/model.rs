@@ -28,6 +28,12 @@ pub struct Category {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct Rating {
+    pub id: i32,
+    pub name: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct AuthorAggregate {
     pub author: Author,
     pub count: i32,
@@ -41,7 +47,7 @@ pub struct TagAggregate {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RatingAggregate {
-    pub rating: i32,
+    pub rating: Rating,
     pub count: i32,
 }
 

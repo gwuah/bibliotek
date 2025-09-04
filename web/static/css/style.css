@@ -65,7 +65,15 @@ body {
   padding: 10px;
 }
 
-.ascii-tree ul {
+.hidden {
+  display: none;
+}
+
+.expand-icon {
+  display: inline-block;
+}
+
+.ascii-tree {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -89,7 +97,7 @@ body {
 .ascii-tree .sub-list {
   margin: 0;
   padding: 0;
-  display: none;
+  /* display: none; */
   position: relative;
   margin-left: 33px;
 }

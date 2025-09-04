@@ -165,9 +165,7 @@ ORDER BY type, count DESC;
                     count,
                 }),
                 "ratings" => ratings_aggregates.push(RatingAggregate {
-                    rating: name
-                        .parse()
-                        .map_err(|e| anyhow::anyhow!("failed to parse rating: {e}"))?,
+                    rating: Rating { id, name: name },
                     count,
                 }),
                 _ => {
