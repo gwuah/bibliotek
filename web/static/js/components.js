@@ -31,10 +31,19 @@ class AsciiTreeManager {
     );
 
     expandableItems.forEach((item) => {
-      // const treeItem = item.querySelector("");
       item.addEventListener("click", (e) => {
         e.preventDefault();
         this.toggleExpansion(item);
+      });
+
+      const treeItems = item.querySelectorAll(".sub-list li");
+      treeItems.forEach((treeItem) => {
+        treeItem.addEventListener("click", (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          console.log("treeItem clicked");
+          // this.toggleExpansion(item);
+        });
       });
     });
   }

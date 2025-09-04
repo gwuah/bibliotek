@@ -120,7 +120,7 @@ body {
 }
 
 /* Vertical continuation line for children (except last child) */
-.ascii-tree .sub-list li:not(:last-child):not(:first-child)::after {
+/* .ascii-tree .sub-list li:not(:last-child):not(:first-child)::after {
   content: "";
   position: absolute;
   left: -27.99px;
@@ -151,4 +151,4 @@ body {
   width: 2px;
   border-left: 1px solid black;
   z-index: 1;
-}
+} */
