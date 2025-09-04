@@ -1,6 +1,7 @@
 class Bibliotek {
   constructor() {
     this.metadata = {};
+    this.books = [];
     this.init();
   }
 
@@ -85,9 +86,59 @@ class Bibliotek {
     this.metadata = data.metadata;
   }
 
+  async loadBooks() {
+    try {
+      let response = await fetch("/static/books.json");
+      if (response.ok) {
+        this.books = await response.json();
+      } else {
+        console.warn("Could not load books.json, using empty array");
+        this.books = [];
+      }
+    } catch (error) {
+      console.warn("Error loading books:", error);
+      this.books = [];
+    }
+  }
+
+  renderBooks() {
+    const booksContainer = document.getElementById("books-container");
+    booksContainer.innerHTML = ""; // Clear existing content
+
+    if (this.books.length === 0) {
+      booksContainer.innerHTML = "<p>No books found</p>";
+      return;
+    }
+
+    // Create a grid container for books
+    const booksGrid = document.createElement("div");
+    booksGrid.classList.add("books-grid");
+
+    this.books.forEach((book) => {
+      const bookItem = document.createElement("div");
+      bookItem.classList.add("book-item");
+
+      bookItem.innerHTML = `
+        <div class="book-cover">
+          <img src="${book.cover_url}" alt="${book.title}" loading="lazy" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDEwMCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxMDAiIGhlaWdodD0iMTUwIiBmaWxsPSIjZjNmNGY2Ii8+CjxwYXRoIGQ9Ik00NSA2MEw1NSA2MEw1NSA3MEw0NSA3MFoiIGZpbGw9IiNkMWQ1ZGIiLz4KPHN2Zz4K'" />
+        </div>
+        <div class="book-info">
+          <h3 class="book-title">${book.title}</h3>
+          <p class="book-pages">${book.pages} pages</p>
+        </div>
+      `;
+
+      booksGrid.appendChild(bookItem);
+    });
+
+    booksContainer.appendChild(booksGrid);
+  }
+
   async init() {
     await this.loadMetadata();
+    await this.loadBooks();
     await this.renderMetadata();
+    await this.renderBooks();
     await this.initializeEventListeners();
   }
 }
