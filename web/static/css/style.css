@@ -71,13 +71,6 @@ body {
   padding: 0;
 }
 
-.ascii-tree .sub-list {
-  margin: 0;
-  padding: 0;
-  display: none;
-  position: relative;
-}
-
 .ascii-tree li {
   margin: 0;
   padding: 0;
@@ -94,8 +87,11 @@ body {
 
 /* Tree lines using CSS borders instead of ASCII characters */
 .ascii-tree .sub-list {
+  margin: 0;
+  padding: 0;
+  display: none;
   position: relative;
-  left: 33px;
+  margin-left: 33px;
 }
 
 /* Vertical line from parent to children */
