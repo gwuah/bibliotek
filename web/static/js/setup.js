@@ -170,12 +170,23 @@ class Bibliotek {
     booksContainer.appendChild(booksGrid);
   }
 
+  attachFileUploadListener(event) {
+    const fileInput = document.getElementById("dropzone-file");
+    fileInput.addEventListener("change", (event) => {
+      console.log("file", event);
+      const file = event.target.files[0];
+      document.getElementById("dropzone-file-message").textContent = file.name;
+      document.getElementById("upload-button").classList.remove("hidden");
+    });
+  }
+
   async init() {
     await this.loadMetadata();
     await this.loadBooks();
     await this.renderMetadata();
     await this.renderBooks();
     await this.initializeEventListeners();
+    await this.attachFileUploadListener();
   }
 }
 

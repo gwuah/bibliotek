@@ -4,6 +4,24 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Custom file input styling to hide "no file chosen" text */
+/* input[type="file"]::file-selector-button {
+  display: none;
+}
+
+input[type="file"] {
+  color: transparent;
+  text-align: center;
+}
+
+input[type="file"]::-webkit-file-upload-button {
+  visibility: hidden;
+}
+
+input[type="file"]::-moz-file-upload-button {
+  visibility: hidden;
+} */
+
 @font-face {
   font-family: "et-book";
   src: url("https://irfansharif.io/css/et-book/et-book-roman-line-figures/et-book-roman-line-figures.eot");
@@ -68,6 +86,10 @@ body {
   border: 1px solid #ccc;
   height: fit-content;
   padding: 10px;
+}
+
+#dropzone-file-message {
+  max-width: 190px;
 }
 
 #books-container {
