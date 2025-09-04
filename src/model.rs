@@ -61,27 +61,3 @@ pub struct CategoryAggregate {
     pub category: Category,
     pub count: i32,
 }
-
-// match row.get(0)? {
-//                 "author" => author_aggregates.push(AuthorAggregate {
-//                     author: Author {
-//                         id: row.get(1)?,
-//                         name: row.get(2)?,
-//                     },
-//                     book_count: row.get(3)?,
-//                 }),
-//                 "category" => category_aggregates.push(CategoryAggregate {
-//                     category: Category {
-//                         id: row.get(1)?,
-//                         name: row.get(2)?,
-//                     },
-//                     book_count: row.get(3)?,
-//                 }),
-//                 "tag" => tag_aggregates.push(TagAggregate {
-//                     tag: Tag {
-//                         id: row.get(1)?,
-//                         name: row.get(2)?,
-//                     },
-//                     book_count: row.get(3)?,
-//                 }),
-//             }

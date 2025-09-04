@@ -1,7 +1,7 @@
 use crate::config::Config;
 use crate::handler::HandlerParams;
 use crate::model::*;
-use anyhow::{Context, Result};
+use anyhow::Result;
 use libsql::{Builder, Connection};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -60,17 +60,6 @@ impl Database {
         let instance = Database { conn };
 
         Ok(instance)
-    }
-
-    fn split_byte_string(
-        bytes: Vec<u8>,
-        delimiter: u8,
-    ) -> Result<Vec<String>, std::str::Utf8Error> {
-        bytes
-            .split(|&b| b == delimiter)
-            .filter(|chunk| !chunk.is_empty())
-            .map(|chunk| std::str::from_utf8(chunk).map(|s| s.trim().to_string()))
-            .collect()
     }
 
     fn split_comma_separated_string(s: String) -> Vec<String> {
@@ -152,16 +141,7 @@ LIMIT ? OFFSET ?
         let mut books: Vec<Book> = vec![];
 
         while let Some(row) = rows.next().await? {
-            println!("Column {:?}", row.get_value(0));
-            // println!("Column {:?}", row.get_value(1));
-            // println!("Column {:?}", row.get_value(2));
-            // println!("Column {:?}", row.get_value(3));
-            // println!("Column {:?}", row.get_value(4));
-            // println!("Column {:?}", row.get_value(5));
-            // println!("Column {:?}", row.get_value(6));
-            // println!("Column {:?}", row.get_value(7));
-            // println!("Column {:?}", row.get_value(8));
-            // println!("Column {:?}", row.get_value(9));
+            // println!("Col/mn {:?}", row.get_value(0));
 
             let book_id: i32 = row.get(0)?;
             let book_title: String = row.get(1)?;

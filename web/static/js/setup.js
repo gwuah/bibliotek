@@ -190,6 +190,103 @@ class Bibliotek {
   }
 }
 
+class Uploader {
+  constructor() {
+    this.init();
+  }
+
+  freezeUploadFunctionality() {
+    let uploadButton = document.getElementById("upload-button");
+    let dropzoneFile = document.getElementById("dropzone-file");
+    uploadButton.textContent = "uploading...";
+    uploadButton.classList.add("disabled");
+    uploadButton.disabled = true;
+    dropzoneFile.disabled = true;
+  }
+
+  resetUploadFunctionality() {
+    let uploadButton = document.getElementById("upload-button");
+    let dropzoneFile = document.getElementById("dropzone-file");
+    let dropzoneFileMessage = document.getElementById("dropzone-file-message");
+    dropzoneFile.value = "";
+    dropzoneFile.disabled = false;
+    uploadButton.disabled = false;
+    uploadButton.textContent = "upload";
+    uploadButton.classList.remove("disabled");
+    uploadButton.classList.add("hidden");
+    dropzoneFileMessage.textContent = "click to upload";
+  }
+
+  async attachFileUploadListener() {
+    const fileInput = document.getElementById("upload-button");
+    fileInput.addEventListener("click", (event) => {
+      const fileInput = document.getElementById("dropzone-file");
+      const file = fileInput.files[0];
+      this.uploadFile(file, (progress) => {
+        console.log("progress", progress);
+      });
+    });
+  }
+
+  async uploadFile(file, onProgress) {
+    this.freezeUploadFunctionality();
+
+    const chunkSize = 1 * 1024 * 1024; // 1MB chunks
+    const totalChunks = Math.ceil(file.size / chunkSize);
+    const initResponse = await this.initUpload(file.name);
+    for (let i = 0; i < totalChunks; i++) {
+      const chunk = file.slice(i * chunkSize, (i + 1) * chunkSize);
+
+      try {
+        await this.uploadChunk(
+          initResponse.upload_id,
+          chunk,
+          i + 1,
+          onProgress
+        );
+      } catch (error) {
+        console.error("Error uploading chunk", error);
+        // this.resetUploadFunctionality();
+        return;
+      }
+    }
+
+    await this.completeUpload(initResponse.upload_id);
+
+    this.resetUploadFunctionality();
+  }
+
+  async initUpload(fileName) {
+    const formData = new FormData();
+    formData.append("file_name", fileName);
+    const response = await axios.post("/upload?state=init", formData);
+    return response.data;
+  }
+
+  async uploadChunk(uploadId, chunk, partNumber, onProgress) {
+    const formData = new FormData();
+    formData.append("chunk", chunk);
+    formData.append("upload_id", uploadId);
+    formData.append("part_number", partNumber);
+    await axios.post("/upload?state=continue", formData, {
+      onUploadProgress: (e) => {
+        onProgress(e);
+      },
+    });
+  }
+
+  async completeUpload(uploadId) {
+    const formData = new FormData();
+    formData.append("upload_id", uploadId);
+    await axios.post("/upload?state=complete", formData);
+  }
+
+  async init() {
+    await this.attachFileUploadListener();
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   window.app = new Bibliotek();
+  window.uploader = new Uploader();
 });

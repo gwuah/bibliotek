@@ -277,3 +277,8 @@ img {
   border-left: 1px solid black;
   z-index: 1;
 } */
+
+#upload-button .disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

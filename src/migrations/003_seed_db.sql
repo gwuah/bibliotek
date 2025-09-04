@@ -48,7 +48,7 @@ VALUES
     (
         'Principia Mathematica',
         'https://example.com/books/principia.pdf',
-        'https://example.com/covers/principia.jpg',
+        'https://covers.openlibrary.org/b/isbn/9780061120084-L.jpg',
         5,
         'A mathematical treatise on the foundations of mathematics',
         100
@@ -56,7 +56,7 @@ VALUES
     (
         'The Origin of Species',
         'https://example.com/books/origin.pdf',
-        'https://example.com/covers/origin.jpg',
+        'https://covers.openlibrary.org/b/isbn/9780451524935-L.jpg',
         5,
         'A scientific treatise on the origin of species',
         450
@@ -64,7 +64,7 @@ VALUES
     (
         'A Brief History of Time',
         'https://example.com/books/brief-history.pdf',
-        'https://example.com/covers/brief-history.jpg',
+        'https://covers.openlibrary.org/b/isbn/9780141439518-L.jpg',
         4,
         'A scientific treatise on the history of time',
         300
@@ -72,7 +72,7 @@ VALUES
     (
         'Computing Machinery and Intelligence',
         'https://example.com/books/computing.pdf',
-        'https://example.com/covers/computing.jpg',
+        'https://covers.openlibrary.org/b/isbn/9780743273565-L.jpg',
         5,
         'A scientific treatise on the intelligence of computers',
         200
@@ -80,7 +80,7 @@ VALUES
     (
         'Mrs. Dalloway',
         'https://example.com/books/dalloway.pdf',
-        'https://example.com/covers/dalloway.jpg',
+        'https://covers.openlibrary.org/b/isbn/9780747532699-L.jpg',
         4,
         'A novel about a woman and her thoughts',
         128
@@ -88,7 +88,7 @@ VALUES
     (
         'Hamlet',
         'https://example.com/books/hamlet.pdf',
-        'https://example.com/covers/hamlet.jpg',
+        'https://covers.openlibrary.org/b/isbn/9780316769174-L.jpg',
         5,
         'A play about a man and his thoughts',
         324
@@ -96,7 +96,7 @@ VALUES
     (
         'The Republic',
         'https://example.com/books/republic.pdf',
-        'https://example.com/covers/republic.jpg',
+        'https://covers.openlibrary.org/b/isbn/9780544003415-L.jpg',
         5,
         'A philosophical treatise on the nature of the republic',
         100
@@ -104,7 +104,7 @@ VALUES
     (
         'Notebooks',
         'https://example.com/books/notebooks.pdf',
-        'https://example.com/covers/notebooks.jpg',
+        'https://covers.openlibrary.org/b/isbn/9780441172719-L.jpg',
         4,
         'A notebook about a man and his thoughts',
         600
@@ -112,7 +112,7 @@ VALUES
     (
         'My Inventions',
         'https://example.com/books/inventions.pdf',
-        'https://example.com/covers/inventions.jpg',
+        'https://covers.openlibrary.org/b/isbn/9780385490818-L.jpg',
         4,
         'A notebook about a man and his inventions',
         443
@@ -120,7 +120,7 @@ VALUES
     (
         'Notes on the First Mechanical Computer',
         'https://example.com/books/notes.pdf',
-        'https://example.com/covers/notes.jpg',
+        'https://covers.openlibrary.org/b/isbn/9781400033416-L.jpg',
         4,
         'A notebook about a man and his thoughts',
         388
@@ -128,7 +128,7 @@ VALUES
     (
         'Pride and Prejudice',
         'https://example.com/books/pride.pdf',
-        'https://example.com/covers/pride.jpg',
+        'https://covers.openlibrary.org/b/isbn/9780486282114-L.jpg',
         4,
         'A novel about a man and his thoughts',
         499
@@ -136,7 +136,7 @@ VALUES
     (
         'The Sun Also Rises',
         'https://example.com/books/sun.pdf',
-        'https://example.com/covers/sun.jpg',
+        'https://covers.openlibrary.org/b/isbn/9780486277688-L.jpg',
         4,
         'A novel about a man and his thoughts',
         277
@@ -144,7 +144,7 @@ VALUES
     (
         'Relativity: The Special and General Theory',
         'https://example.com/books/relativity.pdf',
-        'https://example.com/covers/relativity.jpg',
+        'https://covers.openlibrary.org/b/isbn/9780486600819-L.jpg',
         5,
         'A scientific treatise on the relativity',
         299
@@ -152,7 +152,7 @@ VALUES
     (
         'Radium and Other Radioactive Substances',
         'https://example.com/books/radium.pdf',
-        'https://example.com/covers/radium.jpg',
+        'https://covers.openlibrary.org/b/isbn/9780486411095-L.jpg',
         4,
         'A scientific treatise on the radioactive substances',
         311
@@ -160,7 +160,7 @@ VALUES
     (
         'On the Motion of the Heart and Blood',
         'https://example.com/books/heart.pdf',
-        'https://example.com/covers/heart.jpg',
+        'https://covers.openlibrary.org/b/isbn/9780486415871-L.jpg',
         4,
         'A scientific treatise on the motion of the heart and blood',
         324

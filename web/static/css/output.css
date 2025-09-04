@@ -273,11 +273,6 @@
   .filter {
     filter: var(--tw-blur,) var(--tw-brightness,) var(--tw-contrast,) var(--tw-grayscale,) var(--tw-hue-rotate,) var(--tw-invert,) var(--tw-saturate,) var(--tw-sepia,) var(--tw-drop-shadow,);
   }
-  .placeholder\:text-center {
-    &::placeholder {
-      text-align: center;
-    }
-  }
   .hover\:bg-\[\#e0e0e0\] {
     &:hover {
       @media (hover: hover) {
@@ -444,6 +439,10 @@ img {
   height: 1px;
   border-top: 1px solid black;
   z-index: 2;
+}
+#upload-button .disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 @property --tw-border-style {
   syntax: "*";
