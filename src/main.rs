@@ -4,7 +4,6 @@ use axum::{
     Router,
     routing::{get, post},
 };
-use tower_http::services::ServeDir;
 use bibliotek::db::Database;
 use bibliotek::handler::{AppState, get_books, get_metadata, healthcheck, serve_index, upload};
 use bibliotek::s3::ObjectStorage;
@@ -15,6 +14,7 @@ use bibliotek::{
 use clap::Parser;
 use tokio::{signal, sync::mpsc};
 use tokio_util::sync::CancellationToken;
+use tower_http::services::ServeDir;
 use tracing;
 
 #[tokio::main]
@@ -50,8 +50,8 @@ async fn main() {
         .route("/books", get(get_books))
         .route("/metadata", get(get_metadata))
         .route("/upload", post(upload))
-        .nest_service("/js", ServeDir::new("web/js"))
-        .nest_service("/css", ServeDir::new("web/css"))
+        // .nest_service("/js", ServeDir::new("web/js"))
+        // .nest_service("/css", ServeDir::new("web/css"))
         .nest_service("/static", ServeDir::new("web/static"))
         .with_state(AppState { db, s3 });
 

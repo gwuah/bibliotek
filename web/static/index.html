@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bibliotek</title>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <link rel="stylesheet" href="css/output.css" />
+  </head>
+  <body class="p-10">
+    <div class="flex flex-row gap-10">
+      <div class="flex flex-col gap-5 w-[240px]">
+        <div>
+          <input
+            type="text"
+            id="search-input"
+            placeholder="Search"
+            class="w-full border-1 border-[#ccc] pl-2"
+          />
+        </div>
+        <div>
+          <div
+            class="flex items-center justify-center w-full bg-[#f0f0f0] hover:bg-[#e0e0e0]"
+          >
+            <label
+              for="dropzone-file"
+              class="flex flex-col items-center justify-center w-full h-34 border-1 border-[#ccc] cursor-pointer"
+            >
+              <div class="flex flex-col items-center justify-center">
+                <dropzone-file></dropzone-file>
+                <p
+                  id="dropzone-file-message"
+                  class="text-sm font-bold text-center"
+                >
+                  click to upload
+                </p>
+              </div>
+              <input id="dropzone-file" type="file" class="hidden" />
+            </label>
+          </div>
+          <button
+            id="upload-button"
+            class="w-full hidden border-1 border-[#ccc] text-sm mt-1 py-1 cursor-pointer bg-[#f0f0f0] hover:bg-[#e0e0e0]"
+          >
+            Upload
+          </button>
+          <!-- <p id="dropzone-file-message" class="text-sm text-center"></p> -->
+        </div>
+
+        <div id="aggregates-container" class="w-full">
+          <ul id="aggregates-list" class="ascii-tree"></ul>
+        </div>
+      </div>
+      <div id="books-container" class="bcontainer"></div>
+    </div>
+
+    <script src="js/setup.js"></script>
+    <script src="js/components.js"></script>
+  </body>
+</html>

@@ -89,6 +89,7 @@ impl ObjectStorage {
         &self,
         upload_id: &str,
         data: Vec<u8>,
+        part_number: i32,
     ) -> Result<String, ObjectStorageError> {
         let (session_key, session_parts) = {
             let sessions = self
@@ -103,19 +104,13 @@ impl ObjectStorage {
             (session.key.clone(), session.parts.clone())
         };
 
-        let part_number = session_parts
-            .lock()
-            .map_err(|e| ObjectStorageError::LockError(e.to_string()))?
-            .len()
-            + 1;
-
         let response = self
             .client
             .upload_part()
             .bucket(&self.bucket)
             .key(&session_key)
             .upload_id(upload_id)
-            .part_number(part_number as i32)
+            .part_number(part_number)
             .body(data.into())
             .send()
             .await
@@ -124,7 +119,7 @@ impl ObjectStorage {
         let etag = response.e_tag.ok_or(ObjectStorageError::ETagMissing)?;
 
         let completed_part = CompletedPart::builder()
-            .part_number(part_number as i32)
+            .part_number(part_number)
             .e_tag(&etag)
             .build();
 
