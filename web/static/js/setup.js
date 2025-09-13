@@ -61,6 +61,8 @@ class Bibliotek {
   constructor() {
     this.metadata = {};
     this.books = [];
+    this.isLoadingMetadata = false;
+    this.isLoadingBooks = false;
     this.init();
   }
 
@@ -100,6 +102,8 @@ class Bibliotek {
     };
 
     const aggregatesList = document.getElementById("aggregates-list");
+    aggregatesList.innerHTML = "";
+
     Object.keys(this.metadata).forEach((key) => {
       const listItem = createMetadataItem(key, this.metadata[key].length);
       aggregatesList.appendChild(listItem);
@@ -140,16 +144,20 @@ class Bibliotek {
   }
 
   async loadMetadata() {
+    this.isLoadingMetadata = true;
     let response = await fetch("/metadata");
     let data = await response.json();
     this.metadata = data.metadata;
+    this.renderMetadata();
+    this.isLoadingMetadata = false;
   }
 
   async loadBooks() {
+    this.isLoadingBooks = true;
     try {
-      let response = await fetch("/static/books.json");
+      let response = await fetch("/books");
       if (response.ok) {
-        this.books = await response.json();
+        this.books = (await response.json()).books;
       } else {
         console.warn("Could not load books.json, using empty array");
         this.books = [];
@@ -158,6 +166,8 @@ class Bibliotek {
       console.warn("Error loading books:", error);
       this.books = [];
     }
+    this.isLoadingBooks = false;
+    this.renderBooks();
   }
 
   renderBooks() {
@@ -232,14 +242,15 @@ class Bibliotek {
   async init() {
     await this.loadMetadata();
     await this.loadBooks();
-    await this.renderMetadata();
-    await this.renderBooks();
+    // await this.renderMetadata();
+    // await this.renderBooks();
     await this.initializeEventListeners();
   }
 }
 
 class Uploader {
-  constructor() {
+  constructor(afterUpload) {
+    this.afterUpload = afterUpload;
     this.progressBar = new UploadProgressBar();
     this.init();
   }
@@ -281,11 +292,12 @@ class Uploader {
       dropzoneFileMessage.textContent = file.name;
     });
 
-    uploadButton.addEventListener("click", (event) => {
+    uploadButton.addEventListener("click", async (event) => {
       const file = fileInput.files[0];
-      this.uploadFile(file, (progress) => {
+      await this.uploadFile(file, (progress) => {
         console.log("progress", progress);
       });
+      this.afterUpload();
     });
   }
 
@@ -356,5 +368,9 @@ class Uploader {
 
 document.addEventListener("DOMContentLoaded", () => {
   window.app = new Bibliotek();
-  window.uploader = new Uploader();
+  const afterUpload = () => {
+    window.app.loadMetadata();
+    window.app.loadBooks();
+  };
+  window.uploader = new Uploader(afterUpload);
 });
