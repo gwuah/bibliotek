@@ -35,23 +35,23 @@ class UploadProgressBar {
     const filledBoxes = Math.floor((percentage / 100) * totalBoxes);
     const isPartialBox = percentage % (100 / totalBoxes) > 0;
 
+    let skipBoxes = false;
     this.progressBoxes.forEach((box, index) => {
-      box.classList.remove("filled", "filling", "active");
-
       if (index < filledBoxes) {
-        // Fully filled boxes
         box.classList.add("filled");
-      } else if (index === filledBoxes && isPartialBox && percentage < 100) {
-        // Currently filling box
-        // box.classList.add("filling", "active");
+        box.classList.remove("active");
+        skipBoxes = false;
+      } else if (isPartialBox && !skipBoxes && percentage < 100) {
+        box.classList.add("active");
+        skipBoxes = true;
       }
     });
 
     // If at 100%, make sure all boxes are filled
     if (percentage === 100) {
       this.progressBoxes.forEach((box) => {
-        box.classList.remove("filling", "active");
         box.classList.add("filled");
+        box.classList.remove("active");
       });
     }
   }
