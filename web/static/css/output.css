@@ -238,6 +238,10 @@
   .gap-x-2 {
     column-gap: calc(var(--spacing) * 2);
   }
+  .border {
+    border-style: var(--tw-border-style);
+    border-width: 1px;
+  }
   .border-1 {
     border-style: var(--tw-border-style);
     border-width: 1px;

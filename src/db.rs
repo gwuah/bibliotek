@@ -69,6 +69,31 @@ impl Database {
             .collect()
     }
 
+    // pub async fn pre_insert_book(&self, book: Book) -> Result<()> {
+    //     let query = r#"
+    //     INSERT INTO books (title, ratings, pages)
+    //     VALUES (?, ?, ?);
+    //     "#;
+
+    //     self.conn
+    //         .execute(query, (book.title, book.ratings, book.pages))
+    //         .await?;
+
+    //     Ok(())
+    // }
+
+    // pub async fn post_insert_book(&self, book: Book) -> Result<()> {
+    //     let query = r#"
+    //     UPDATE books SET url = ?, cover_url = ?, description = ?, author_ids = ?, tag_ids = ?, category_ids = ? WHERE id = ?;
+    //     "#;
+
+    //     self.conn
+    //         .execute(query, (book.title, book.ratings, book.pages))
+    //         .await?;
+
+    //     Ok(())
+    // }
+
     pub async fn get_books(&self, params: HandlerParams) -> Result<Vec<Book>> {
         let last_n_books = r#"
 SELECT 
