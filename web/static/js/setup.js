@@ -1,3 +1,62 @@
+class UploadProgressBar {
+  constructor() {
+    this.container = document.getElementById("upload-progress-container");
+    this.progressBoxes = document.querySelectorAll(".progress-box");
+    this.percentageElement = document.getElementById("progress-percentage");
+    this.currentProgress = 0;
+  }
+
+  setFileName(fileName) {
+    document.getElementById("progress-file-name").textContent = fileName;
+  }
+
+  show() {
+    this.container.classList.remove("hidden");
+  }
+
+  hide() {
+    this.container.classList.add("hidden");
+  }
+
+  reset() {
+    this.currentProgress = 0;
+    this.percentageElement.textContent = "0%";
+    this.progressBoxes.forEach((box) => {
+      box.classList.remove("filled", "filling", "active");
+    });
+  }
+
+  setProgress(percentage) {
+    this.currentProgress = percentage;
+    this.percentageElement.textContent = `${percentage}%`;
+
+    // Calculate how many boxes should be filled
+    const totalBoxes = this.progressBoxes.length;
+    const filledBoxes = Math.floor((percentage / 100) * totalBoxes);
+    const isPartialBox = percentage % (100 / totalBoxes) > 0;
+
+    this.progressBoxes.forEach((box, index) => {
+      box.classList.remove("filled", "filling", "active");
+
+      if (index < filledBoxes) {
+        // Fully filled boxes
+        box.classList.add("filled");
+      } else if (index === filledBoxes && isPartialBox && percentage < 100) {
+        // Currently filling box
+        // box.classList.add("filling", "active");
+      }
+    });
+
+    // If at 100%, make sure all boxes are filled
+    if (percentage === 100) {
+      this.progressBoxes.forEach((box) => {
+        box.classList.remove("filling", "active");
+        box.classList.add("filled");
+      });
+    }
+  }
+}
+
 class Bibliotek {
   constructor() {
     this.metadata = {};
@@ -170,28 +229,18 @@ class Bibliotek {
     booksContainer.appendChild(booksGrid);
   }
 
-  attachFileUploadListener(event) {
-    const fileInput = document.getElementById("dropzone-file");
-    fileInput.addEventListener("change", (event) => {
-      console.log("file", event);
-      const file = event.target.files[0];
-      document.getElementById("dropzone-file-message").textContent = file.name;
-      document.getElementById("upload-button").classList.remove("hidden");
-    });
-  }
-
   async init() {
     await this.loadMetadata();
     await this.loadBooks();
     await this.renderMetadata();
     await this.renderBooks();
     await this.initializeEventListeners();
-    await this.attachFileUploadListener();
   }
 }
 
 class Uploader {
   constructor() {
+    this.progressBar = new UploadProgressBar();
     this.init();
   }
 
@@ -218,9 +267,21 @@ class Uploader {
   }
 
   async attachFileUploadListener() {
-    const fileInput = document.getElementById("upload-button");
-    fileInput.addEventListener("click", (event) => {
-      const fileInput = document.getElementById("dropzone-file");
+    const uploadButton = document.getElementById("upload-button");
+    const fileInput = document.getElementById("dropzone-file");
+    const dropzoneFileMessage = document.getElementById(
+      "dropzone-file-message"
+    );
+
+    fileInput.addEventListener("change", (event) => {
+      const file = event.target.files[0];
+      this.progressBar.reset();
+      this.progressBar.setFileName(fileInput.files[0].name);
+      uploadButton.classList.remove("hidden");
+      dropzoneFileMessage.textContent = file.name;
+    });
+
+    uploadButton.addEventListener("click", (event) => {
       const file = fileInput.files[0];
       this.uploadFile(file, (progress) => {
         console.log("progress", progress);
@@ -230,12 +291,15 @@ class Uploader {
 
   async uploadFile(file, onProgress) {
     this.freezeUploadFunctionality();
+    this.progressBar.show();
 
     const chunkSize = 1 * 1024 * 1024; // 1MB chunks
     const totalChunks = Math.ceil(file.size / chunkSize);
     const initResponse = await this.initUpload(file.name);
+
     for (let i = 0; i < totalChunks; i++) {
       const chunk = file.slice(i * chunkSize, (i + 1) * chunkSize);
+      const progress = Math.round(((i + 1) / totalChunks) * 100);
 
       try {
         await this.uploadChunk(
@@ -244,6 +308,9 @@ class Uploader {
           i + 1,
           onProgress
         );
+
+        // Update progress bar
+        this.progressBar.setProgress(progress);
       } catch (error) {
         console.error("Error uploading chunk", error);
         // this.resetUploadFunctionality();
@@ -253,6 +320,7 @@ class Uploader {
 
     await this.completeUpload(initResponse.upload_id);
 
+    this.progressBar.setProgress(100);
     this.resetUploadFunctionality();
   }
 

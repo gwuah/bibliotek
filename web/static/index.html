@@ -18,10 +18,27 @@
             class="w-full border-1 border-[#ccc] pl-2"
           />
         </div>
-        <div>
-          <div
-            class="flex items-center justify-center w-full bg-[#f0f0f0] hover:bg-[#e0e0e0]"
-          >
+        <div id="upload-progress-container" class="w-full hidden">
+          <!-- <div class="text-sm font-bold mb-2">Upload Progress</div> -->
+          <div class="upload-progress-bar">
+            <div class="progress-box" data-index="0"></div>
+            <div class="progress-box" data-index="1"></div>
+            <div class="progress-box" data-index="2"></div>
+            <div class="progress-box" data-index="3"></div>
+            <div class="progress-box" data-index="4"></div>
+            <div class="progress-box" data-index="5"></div>
+            <div class="progress-box" data-index="6"></div>
+            <div class="progress-box" data-index="7"></div>
+            <div class="progress-box" data-index="8"></div>
+            <div class="progress-box" data-index="9"></div>
+          </div>
+          <div class="text-xs text-center mt-1 flex flex-row justify-between">
+            <span id="progress-percentage">0%</span>
+            <span id="progress-file-name"></span>
+          </div>
+        </div>
+        <div class="outliner">
+          <div class="flex items-center justify-center w-full bg-[#e0e0e0]">
             <label
               for="dropzone-file"
               class="flex flex-col items-center justify-center w-full h-34 border-1 border-[#ccc] cursor-pointer"
@@ -40,7 +57,7 @@
           </div>
           <button
             id="upload-button"
-            class="w-full hidden border-1 border-[#ccc] text-sm mt-1 py-1 cursor-pointer bg-[#f0f0f0] hover:bg-[#e0e0e0]"
+            class="w-full hidden border-1 border-[#ccc] text-sm mt-1 py-1 cursor-pointer hover:bg-[#f0f0f0] bg-[#e0e0e0]"
           >
             Upload
           </button>
