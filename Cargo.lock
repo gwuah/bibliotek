@@ -774,11 +774,13 @@ dependencies = [
  "aws-config",
  "aws-sdk-s3",
  "axum",
+ "chrono",
  "clap",
  "dotenv",
  "futures-util",
  "image",
  "libsql",
+ "lopdf",
  "pdf",
  "pdfium-render",
  "serde",
@@ -984,6 +986,7 @@ dependencies = [
  "iana-time-zone",
  "js-sys",
  "num-traits",
+ "serde",
  "wasm-bindgen",
  "windows-link 0.2.0",
 ]
@@ -2414,6 +2417,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "linked-hash-map"
+version = "0.5.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0717cef1bc8b636c6e1c1bbdefc09e6322da8a9321966e8928ef80d20f7f770f"
+
+[[package]]
 name = "linux-raw-sys"
 version = "0.4.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2448,6 +2457,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fae87c125b03c1d2c0150c90365d7d6bcc53fb73a9acaef207d2d065860f062"
 dependencies = [
  "imgref",
+]
+
+[[package]]
+name = "lopdf"
+version = "0.33.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b5c14afa083a906d49e1bda105ddbf8175016e2658954e6d0c3e612f886df3db"
+dependencies = [
+ "chrono",
+ "encoding_rs",
+ "flate2",
+ "indexmap",
+ "itoa",
+ "linked-hash-map",
+ "log",
+ "md-5",
+ "nom",
+ "rayon",
+ "time",
+ "weezl",
 ]
 
 [[package]]
@@ -3901,6 +3930,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a7619e19bc266e0f9c5e6686659d394bc57973859340060a69221e57dbc0c40"
 dependencies = [
  "deranged",
+ "itoa",
  "num-conv",
  "powerfmt",
  "serde",
