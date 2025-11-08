@@ -1,0 +1,360 @@
+@import "tailwindcss";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom file input styling to hide "no file chosen" text */
+/* input[type="file"]::file-selector-button {
+  display: none;
+}
+
+input[type="file"] {
+  color: transparent;
+  text-align: center;
+}
+
+input[type="file"]::-webkit-file-upload-button {
+  visibility: hidden;
+}
+
+input[type="file"]::-moz-file-upload-button {
+  visibility: hidden;
+} */
+
+@font-face {
+  font-family: "et-book";
+  src: url("https://irfansharif.io/css/et-book/et-book-roman-line-figures/et-book-roman-line-figures.eot");
+  src: url("https://irfansharif.io/css/et-book/et-book-roman-line-figures/et-book-roman-line-figures.eot?#iefix")
+      format("embedded-opentype"),
+    url("https://irfansharif.io/css/et-book/et-book-roman-line-figures/et-book-roman-line-figures.woff")
+      format("woff"),
+    url("https://irfansharif.io/css/et-book/et-book-roman-line-figures/et-book-roman-line-figures.ttf")
+      format("truetype"),
+    url("https://irfansharif.io/css/et-book/et-book-roman-line-figures/et-book-roman-line-figures.svg#etbookromanosf")
+      format("svg");
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "et-book";
+  src: url("https://irfansharif.io/css/et-book/et-book-display-italic-old-style-figures/et-book-display-italic-old-style-figures.eot");
+  src: url("https://irfansharif.io/css/et-book/et-book-display-italic-old-style-figures/et-book-display-italic-old-style-figures.eot?#iefix")
+      format("embedded-opentype"),
+    url("https://irfansharif.io/css/et-book/et-book-display-italic-old-style-figures/et-book-display-italic-old-style-figures.woff")
+      format("woff"),
+    url("https://irfansharif.io/css/et-book/et-book-display-italic-old-style-figures/et-book-display-italic-old-style-figures.ttf")
+      format("truetype"),
+    url("https://irfansharif.io/css/et-book/et-book-display-italic-old-style-figures/et-book-display-italic-old-style-figures.svg#etbookromanosf")
+      format("svg");
+  font-weight: normal;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: "et-book";
+  src: url("https://irfansharif.io/css/et-book/et-book-bold-line-figures/et-book-bold-line-figures.eot");
+  src: url("https://irfansharif.io/css/et-book/et-book-bold-line-figures/et-book-bold-line-figures.eot?#iefix")
+      format("embedded-opentype"),
+    url("https://irfansharif.io/css/et-book/et-book-bold-line-figures/et-book-bold-line-figures.woff")
+      format("woff"),
+    url("https://irfansharif.io/css/et-book/et-book-bold-line-figures/et-book-bold-line-figures.ttf")
+      format("truetype"),
+    url("https://irfansharif.io/css/et-book/et-book-bold-line-figures/et-book-bold-line-figures.svg#etbookromanosf")
+      format("svg");
+  font-weight: bold;
+  font-style: normal;
+}
+
+/* Global debug borders - uncomment to debug layout */
+* {
+  /* border: 1px solid red; */
+}
+
+.outliner {
+  border: 1px solid red;
+}
+
+body {
+  font-family: et-book, Palatino, "Palatino Linotype", "Palatino LT STD",
+    "Book Antiqua", Georgia, serif;
+}
+
+.bcontainer {
+  border: 1px solid #ccc;
+}
+
+#aggregates-container {
+  /* width: fit-content; */
+  border: 1px solid #ccc;
+  height: fit-content;
+  padding: 10px;
+}
+
+#dropzone-file-message {
+  max-width: 190px;
+}
+
+#books-container {
+  flex: 1;
+}
+
+.books-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 20px 0px;
+  padding: 20px;
+}
+
+.book-item {
+  display: flex;
+  flex-direction: column;
+  align-items: left;
+  text-align: left;
+  background: #fff;
+  /* border: 1px solid #ccc; */
+  /* width: 150px; */
+}
+
+.book-cover:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+}
+
+.book-cover {
+  width: 120px;
+  height: 180px;
+  margin-bottom: 10px;
+  width: max-content;
+  /* border: 1px solid #ccc; */
+}
+
+img {
+  width: 120px;
+  height: 180px;
+  object-fit: cover;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.book-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.book-title {
+  font-size: 14px;
+  max-width: 120px;
+  font-weight: bold;
+  line-height: 1.3;
+  margin: 0;
+  color: #333;
+}
+
+.book-pages {
+  font-size: 12px;
+  color: #666;
+  margin: 0;
+}
+
+/* Skeleton Loading Animation */
+.skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.book-cover-skeleton {
+  width: 120px;
+  height: 180px;
+  border-radius: 4px;
+}
+
+.book-cover img.loading {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.book-cover img.loaded {
+  opacity: 1;
+}
+
+/* ASCII TREE */
+.expand-icon {
+  display: inline-block;
+}
+
+.ascii-tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ascii-tree li {
+  margin: 0;
+  padding: 0;
+  position: relative;
+  cursor: pointer;
+}
+
+/* Sub-items positioning */
+.ascii-tree .sub-list li {
+  position: relative;
+  margin: 0;
+  padding: 0;
+}
+
+/* Tree lines using CSS borders instead of ASCII characters */
+.ascii-tree .sub-list {
+  margin: 0;
+  padding: 0;
+  /* display: none; */
+  position: relative;
+  margin-left: 33px;
+}
+
+/* Vertical line from parent to children */
+.ascii-tree .expandable[data-expanded="true"]::after {
+  content: "";
+  position: absolute;
+  left: 17px;
+  top: 1.4em;
+  height: calc(100% - 2.1em);
+  width: 1px;
+  border-left: 1px solid black;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Horizontal connecting line for each child */
+.ascii-tree .sub-list li::before {
+  content: "";
+  position: absolute;
+  left: -15px;
+  top: 12px;
+  width: 10px;
+  height: 1px;
+  border-top: 1px solid black;
+  z-index: 2;
+}
+
+/* Vertical continuation line for children (except last child) */
+/* .ascii-tree .sub-list li:not(:last-child):not(:first-child)::after {
+  content: "";
+  position: absolute;
+  left: -27.99px;
+  top: -2px;
+  height: 100%;
+  width: 2px;
+  border-left: 1px solid black;
+  z-index: 1;
+}
+
+.ascii-tree .sub-list li:first-child::after {
+  content: "";
+  position: absolute;
+  left: -28px;
+  top: -7px;
+  height: 30px;
+  width: 2px;
+  border-left: 1px solid black;
+  z-index: 1;
+}
+
+.ascii-tree .sub-list li:last-child::after {
+  content: "";
+  position: absolute;
+  left: -28px;
+  bottom: -5px;
+  height: 32px;
+  width: 2px;
+  border-left: 1px solid black;
+  z-index: 1;
+} */
+
+#upload-button.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+#upload-button.disabled:hover {
+  background-color: #e0e0e0;
+}
+
+/* Upload Progress Bar Styles */
+.upload-progress-bar {
+  display: flex;
+  gap: 4px;
+  justify-content: space-between;
+  width: 100%;
+  height: 20px;
+  margin: 8px 0;
+}
+
+.progress-box {
+  flex: 1;
+  height: 100%;
+  background-color: #e0e0e0;
+  border: 1px solid #ccc;
+  border-radius: 2px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.progress-box.filled {
+  background-color: #22c55e;
+  border-color: #16a34a;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
+}
+
+.progress-box.filling {
+  background: linear-gradient(
+    90deg,
+    #22c55e 0%,
+    #22c55e 50%,
+    #e0e0e0 50%,
+    #e0e0e0 100%
+  );
+  background-size: 200% 100%;
+  animation: fillBox 0.5s ease-in-out forwards;
+  border-color: #16a34a;
+}
+
+@keyframes fillBox {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: 0% 0;
+    background: #22c55e;
+  }
+}
+
+/* Pulse animation for active progress */
+.progress-box.active {
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 12px rgba(34, 197, 94, 0.6);
+  }
+}

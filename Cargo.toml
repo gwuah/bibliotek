@@ -8,7 +8,7 @@ anyhow = "1.0.98"
 tokio = { version = "1.47.1", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "json"] }
-axum = { version = "0.7", features = ["multipart"] }
+axum = { version = "0.7", features = ["multipart", "macros"] }
 tower = "0.4"
 tower-http = { version = "0.5", features = ["fs"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -16,12 +16,16 @@ serde_yaml = "0.9"
 tokio-util = "0.7.16"
 thiserror = "2"
 clap = { version = "4.5", features = ["derive"] }
-libsql = "0.9"
+libsql = { version = "0.9.23", default-features = false, features = ["core", "remote", "tls"] }
 serde_json = "1.0.142"
 dotenv = "0.15"
 futures-util = "0.3.31"
 aws-config = {version = "1.8.4", features =  ["behavior-version-latest"] }
 aws-sdk-s3 = "1.101.0"
-
+pdf = "0.9"
+image = "0.25"
+pdfium-render = "0.8"
+lopdf = "0.33"
+chrono = { version = "0.4", features = ["serde"] }
 
 

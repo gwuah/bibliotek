@@ -1,3 +1,8 @@
 target/
 .env
 *.db
+node_modules/
+*.pdf
+.venv
+.DS_Store
+__pycache__/

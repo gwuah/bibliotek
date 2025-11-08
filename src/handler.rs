@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use axum::{
     Json,
     extract::{Multipart, Query, State},
@@ -7,6 +5,7 @@ use axum::{
     response::{Html, IntoResponse, Response},
 };
 use std::fs;
+use std::sync::Arc;
 
 use tracing::info;
 
@@ -24,9 +23,10 @@ pub struct AppState {
 
 #[derive(Debug)]
 pub struct Form {
-    pub file_name: Option<String>,
-    pub upload_id: Option<String>,
-    pub chunk: Option<axum::body::Bytes>,
+    pub file_name: String,
+    pub upload_id: String,
+    pub part_number: i32,
+    pub chunk: axum::body::Bytes,
 }
 
 const DEFAULT_PAGE: u32 = 1;
@@ -125,21 +125,19 @@ pub async fn add_book(State(state): State<AppState>, Query(qp): Query<QueryParam
 
 async fn extract_form(multipart: &mut Multipart) -> Result<Form, HandlerError> {
     let mut form = Form {
-        file_name: None,
-        upload_id: None,
-        chunk: None,
-    };
-
-    let map_err = |e: axum::extract::multipart::MultipartError| -> HandlerError {
-        HandlerError::ValidationError(e.to_string())
+        file_name: String::new(),
+        upload_id: String::new(),
+        part_number: 0,
+        chunk: axum::body::Bytes::new(),
     };
 
     while let Ok(Some(field)) = multipart.next_field().await {
         let form_field_name = field.name().unwrap_or("unknown");
         match form_field_name {
-            "file_name" => form.file_name = Some(field.text().await.map_err(map_err)?),
-            "upload_id" => form.upload_id = Some(field.text().await.map_err(map_err)?),
-            "chunk" => form.chunk = Some(field.bytes().await.map_err(map_err)?),
+            "file_name" => form.file_name = crate::safe_parse_str("file_name", field).await?,
+            "upload_id" => form.upload_id = crate::safe_parse_str("upload_id", field).await?,
+            "chunk" => form.chunk = crate::safe_parse_bytes("chunk", field).await?,
+            "part_number" => form.part_number = crate::safe_parse_num("part_number", field).await?,
             _ => {
                 tracing::error!("unknown form field: {}", form_field_name);
                 continue;
@@ -155,10 +153,7 @@ async fn handle_init_upload(
     multipart: &mut Multipart,
 ) -> Result<String, HandlerError> {
     let form = extract_form(multipart).await?;
-    let filename = form.file_name.ok_or(HandlerError::ValidationError(
-        "file_name is required".to_string(),
-    ))?;
-    let response = state.s3.start_upload(filename.as_str()).await?;
+    let response = state.s3.start_upload(form.file_name.as_str()).await?;
     Ok(response)
 }
 
@@ -167,13 +162,11 @@ async fn handle_continue_upload(
     multipart: &mut Multipart,
 ) -> Result<String, HandlerError> {
     let form = extract_form(multipart).await?;
-    let upload_id = form.upload_id.ok_or(HandlerError::ValidationError(
-        "upload_id is required".to_string(),
-    ))?;
-    let chunk = form.chunk.ok_or(HandlerError::ValidationError(
-        "chunk is required".to_string(),
-    ))?;
-    let response = state.s3.upload(&upload_id, chunk.to_vec()).await?;
+
+    let response = state
+        .s3
+        .upload(&form.upload_id, form.chunk.to_vec(), form.part_number)
+        .await?;
     Ok(response)
 }
 
@@ -182,10 +175,7 @@ async fn handle_complete_upload(
     multipart: &mut Multipart,
 ) -> Result<String, HandlerError> {
     let form = extract_form(multipart).await?;
-    let upload_id = form.upload_id.ok_or(HandlerError::ValidationError(
-        "upload_id is required".to_string(),
-    ))?;
-    let response = state.s3.complete_upload(&upload_id).await?;
+    let response = state.s3.complete_upload(&form.upload_id).await?;
     Ok(response)
 }
 
@@ -255,43 +245,6 @@ pub async fn upload(
         });
     }
 
-    // match upload_state.as_str() {
-    //     "init" => {
-    //         let init = handle_init(&state, upload_state).await.map_err(|e| {
-    //             tracing::error!("failed to initialize upload with s3: {}", e);
-    //             return bad_request("failed to init storage");
-    //         });
-    //         let init = init?;
-    //     }
-    //     _ => {
-    //         tracing::error!("invalid upload state");
-    //         return bad_request("invalid upload state");
-    //     }
-    // }
-
-    // let mut uploaded_files = Vec::new();
-
-    // while let Ok(Some(field)) = multipart.next_field().await {
-    //     let name = field.name().unwrap_or("unknown").to_string();
-    //     println!("name: {}", name);
-    //     let data = match field.bytes().await {
-    //         Ok(bytes) => bytes,
-    //         Err(e) => {
-    //             tracing::error!("Failed to read field bytes: {}", e);
-    //             continue;
-    //         }
-    //     };
-
-    //     tracing::info!("Processing file: {} ({} bytes)", name, data.len());
-
-    //     // For now, just log the file info
-    //     uploaded_files.push(format!("{}: {} bytes", name, data.len()));
-    // }
-
-    // Json(APIResponse::new(
-    //     Some("Files uploaded successfully"),
-    //     Some(vec![Book::new(name, data.len())]),
-    // ))
     (
         StatusCode::OK,
         Json(APIResponse::new_from_msg("Files uploaded successfully")),

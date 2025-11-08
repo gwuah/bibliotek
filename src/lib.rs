@@ -1,4 +1,5 @@
 use crate::api::APIResponse;
+use crate::error::HandlerError;
 use axum::{
     Json,
     http::StatusCode,
@@ -11,6 +12,7 @@ pub mod config;
 pub mod db;
 pub mod error;
 pub mod handler;
+pub mod model;
 pub mod s3;
 
 pub fn internal_error<E: std::error::Error>(err: E) -> (StatusCode, String) {
@@ -46,4 +48,33 @@ pub fn get_s3_url(service: &str, bucket: &str, key: &str) -> String {
         "s3" => format!("https://{}.s3.amazonaws.com/{}", bucket, key),
         _ => format!("https://{}.storage.dev/{}", service, key),
     }
+}
+
+async fn safe_parse_str<'a>(
+    field_name: &str,
+    s: axum::extract::multipart::Field<'a>,
+) -> Result<String, HandlerError> {
+    s.text()
+        .await
+        .map_err(|e| HandlerError::ValidationError(format!("{}: {}", field_name, e.to_string())))
+}
+
+async fn safe_parse_num<'a>(
+    field_name: &str,
+    s: axum::extract::multipart::Field<'a>,
+) -> Result<i32, HandlerError> {
+    s.text()
+        .await
+        .map_err(|e| HandlerError::ValidationError(format!("{}: {}", field_name, e.to_string())))?
+        .parse::<i32>()
+        .map_err(|e| HandlerError::ValidationError(format!("{}: {}", field_name, e.to_string())))
+}
+
+async fn safe_parse_bytes<'a>(
+    field_name: &str,
+    s: axum::extract::multipart::Field<'a>,
+) -> Result<axum::body::Bytes, HandlerError> {
+    s.bytes()
+        .await
+        .map_err(|e| HandlerError::ValidationError(format!("{}: {}", field_name, e.to_string())))
 }

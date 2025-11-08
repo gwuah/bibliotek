@@ -4,11 +4,13 @@ use aws_sdk_s3::Client;
 use aws_sdk_s3::types::{Bucket, CompletedMultipartUpload, CompletedPart};
 use std::collections::HashMap;
 use std::env;
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 pub struct UploadSession {
     key: String,
     parts: Arc<Mutex<Vec<CompletedPart>>>,
+    chunks: Arc<Mutex<Vec<u8>>>,
 }
 
 pub struct ObjectStorage {
@@ -79,6 +81,7 @@ impl ObjectStorage {
             UploadSession {
                 key: key.to_string(),
                 parts: Arc::new(Mutex::new(Vec::new())),
+                chunks: Arc::new(Mutex::new(Vec::new())),
             },
         );
 
@@ -89,6 +92,7 @@ impl ObjectStorage {
         &self,
         upload_id: &str,
         data: Vec<u8>,
+        part_number: i32,
     ) -> Result<String, ObjectStorageError> {
         let (session_key, session_parts) = {
             let sessions = self
@@ -100,14 +104,15 @@ impl ObjectStorage {
                 .get(upload_id)
                 .ok_or(ObjectStorageError::SessionNotFound(upload_id.to_string()))?;
 
+            let mut chunks = session
+                .chunks
+                .lock()
+                .map_err(|e| ObjectStorageError::LockError(e.to_string()))?;
+
+            chunks.extend(data.clone());
+
             (session.key.clone(), session.parts.clone())
         };
-
-        let part_number = session_parts
-            .lock()
-            .map_err(|e| ObjectStorageError::LockError(e.to_string()))?
-            .len()
-            + 1;
 
         let response = self
             .client
@@ -115,7 +120,7 @@ impl ObjectStorage {
             .bucket(&self.bucket)
             .key(&session_key)
             .upload_id(upload_id)
-            .part_number(part_number as i32)
+            .part_number(part_number)
             .body(data.into())
             .send()
             .await
@@ -124,7 +129,7 @@ impl ObjectStorage {
         let etag = response.e_tag.ok_or(ObjectStorageError::ETagMissing)?;
 
         let completed_part = CompletedPart::builder()
-            .part_number(part_number as i32)
+            .part_number(part_number)
             .e_tag(&etag)
             .build();
 
@@ -137,7 +142,7 @@ impl ObjectStorage {
     }
 
     pub async fn complete_upload(&self, upload_id: &str) -> Result<String, ObjectStorageError> {
-        let (key, locked_parts) = {
+        let (key, chunks, locked_parts) = {
             let sessions = self
                 .sessions
                 .lock()
@@ -147,8 +152,15 @@ impl ObjectStorage {
                 .get(upload_id)
                 .ok_or(ObjectStorageError::SessionNotFound(upload_id.to_string()))?;
 
-            (session.key.clone(), session.parts.clone())
+            let chunks = session
+                .chunks
+                .lock()
+                .map_err(|e| ObjectStorageError::LockError(e.to_string()))?;
+
+            (session.key.clone(), chunks.clone(), session.parts.clone())
         };
+
+        // self.write_chunks_to_file(&chunks, upload_id).await?;
 
         println!("key: {:?}, upload_id: {:?}", key, upload_id);
 
@@ -183,5 +195,34 @@ impl ObjectStorage {
         let location = response.key.unwrap_or(key.to_string());
         let bucket = response.bucket.unwrap_or(self.bucket.clone());
         Ok(crate::get_s3_url(&self.service, &bucket, &location))
+    }
+
+    async fn write_chunks_to_file(
+        &self,
+        chunks: &[u8],
+        upload_id: &str,
+    ) -> Result<(), ObjectStorageError> {
+        use tokio::fs::File;
+        use tokio::io::AsyncWriteExt;
+
+        let filename = format!("upload_{}", upload_id);
+        let mut file = File::create(&filename).await.map_err(|e| {
+            ObjectStorageError::LockError(format!("Failed to create file {}: {}", filename, e))
+        })?;
+
+        file.write_all(chunks).await.map_err(|e| {
+            ObjectStorageError::LockError(format!("Failed to write to file {}: {}", filename, e))
+        })?;
+
+        file.flush().await.map_err(|e| {
+            ObjectStorageError::LockError(format!("Failed to flush file {}: {}", filename, e))
+        })?;
+
+        println!(
+            "Successfully wrote {} bytes to file: {}",
+            chunks.len(),
+            filename
+        );
+        Ok(())
     }
 }
