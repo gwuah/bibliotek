@@ -1,62 +1,3 @@
-class UploadProgressBar {
-  constructor() {
-    this.container = document.getElementById("upload-progress-container");
-    this.progressBoxes = document.querySelectorAll(".progress-box");
-    this.percentageElement = document.getElementById("progress-percentage");
-    this.currentProgress = 0;
-  }
-
-  setFileName(fileName) {
-    document.getElementById("progress-file-name").textContent = fileName;
-  }
-
-  show() {
-    this.container.classList.remove("hidden");
-  }
-
-  hide() {
-    this.container.classList.add("hidden");
-  }
-
-  reset() {
-    this.currentProgress = 0;
-    this.percentageElement.textContent = "0%";
-    this.progressBoxes.forEach((box) => {
-      box.classList.remove("filled", "filling", "active");
-    });
-  }
-
-  setProgress(percentage) {
-    this.currentProgress = percentage;
-    this.percentageElement.textContent = `${percentage}%`;
-
-    // Calculate how many boxes should be filled
-    const totalBoxes = this.progressBoxes.length;
-    const filledBoxes = Math.floor((percentage / 100) * totalBoxes);
-    const isPartialBox = percentage % (100 / totalBoxes) > 0;
-
-    let skipBoxes = false;
-    this.progressBoxes.forEach((box, index) => {
-      if (index < filledBoxes) {
-        box.classList.add("filled");
-        box.classList.remove("active");
-        skipBoxes = false;
-      } else if (isPartialBox && !skipBoxes && percentage < 100) {
-        box.classList.add("active");
-        skipBoxes = true;
-      }
-    });
-
-    // If at 100%, make sure all boxes are filled
-    if (percentage === 100) {
-      this.progressBoxes.forEach((box) => {
-        box.classList.add("filled");
-        box.classList.remove("active");
-      });
-    }
-  }
-}
-
 class Bibliotek {
   constructor() {
     this.metadata = {};
@@ -248,92 +189,310 @@ class Bibliotek {
   }
 }
 
-class Uploader {
+class MassUploader {
   constructor(afterUpload) {
     this.afterUpload = afterUpload;
-    this.progressBar = new UploadProgressBar();
+    this.queue = [];
+    this.maxConcurrent = 5;
+    this.activeUploads = 0;
+    this.isRunning = false;
+    this.elements = {
+      dropArea: document.getElementById("file-drop-area"),
+      fileInput: document.getElementById("dropzone-file"),
+      queueList: document.getElementById("upload-queue"),
+      controls: document.getElementById("upload-controls"),
+      startButton: document.getElementById("start-upload-button"),
+      summary: document.getElementById("upload-summary"),
+    };
     this.init();
   }
 
-  freezeUploadFunctionality() {
-    let uploadButton = document.getElementById("upload-button");
-    let dropzoneFile = document.getElementById("dropzone-file");
-    uploadButton.textContent = "uploading...";
-    uploadButton.classList.add("disabled");
-    uploadButton.disabled = true;
-    dropzoneFile.disabled = true;
+  async init() {
+    this.bindEvents();
+    this.updateControlsVisibility();
+    this.updateSummary();
   }
 
-  resetUploadFunctionality() {
-    let uploadButton = document.getElementById("upload-button");
-    let dropzoneFile = document.getElementById("dropzone-file");
-    let dropzoneFileMessage = document.getElementById("dropzone-file-message");
-    dropzoneFile.value = "";
-    dropzoneFile.disabled = false;
-    uploadButton.disabled = false;
-    uploadButton.textContent = "upload";
-    uploadButton.classList.remove("disabled");
-    uploadButton.classList.add("hidden");
-    dropzoneFileMessage.textContent = "click to upload";
-  }
+  bindEvents() {
+    const { dropArea, fileInput, startButton } = this.elements;
 
-  async attachFileUploadListener() {
-    const uploadButton = document.getElementById("upload-button");
-    const fileInput = document.getElementById("dropzone-file");
-    const dropzoneFileMessage = document.getElementById(
-      "dropzone-file-message"
-    );
+    dropArea.addEventListener("click", () => {
+      fileInput.click();
+    });
 
     fileInput.addEventListener("change", (event) => {
-      const file = event.target.files[0];
-      this.progressBar.reset();
-      this.progressBar.setFileName(fileInput.files[0].name);
-      uploadButton.classList.remove("hidden");
-      dropzoneFileMessage.textContent = file.name;
+      const files = Array.from(event.target.files || []);
+      this.handleIncomingFiles(files);
+      fileInput.value = "";
     });
 
-    uploadButton.addEventListener("click", async (event) => {
-      const file = fileInput.files[0];
-      await this.uploadFile(file, (progress) => {
-        console.log("progress", progress);
+    ["dragenter", "dragover"].forEach((eventName) => {
+      dropArea.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        dropArea.classList.add("dragging");
       });
-      this.afterUpload();
+    });
+
+    ["dragleave", "drop"].forEach((eventName) => {
+      dropArea.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        dropArea.classList.remove("dragging");
+      });
+    });
+
+    dropArea.addEventListener("drop", (event) => {
+      const files = Array.from(event.dataTransfer?.files || []);
+      this.handleIncomingFiles(files);
+    });
+
+    document.addEventListener("paste", (event) => {
+      const files = Array.from(event.clipboardData?.files || []);
+      if (files.length > 0) {
+        this.handleIncomingFiles(files);
+      }
+    });
+
+    startButton.addEventListener("click", () => {
+      this.startUploads();
     });
   }
 
-  async uploadFile(file, onProgress) {
-    this.freezeUploadFunctionality();
-    this.progressBar.show();
+  handleIncomingFiles(files) {
+    if (!files || files.length === 0) {
+      return;
+    }
 
-    const chunkSize = 1 * 1024 * 1024; // 1MB chunks
-    const totalChunks = Math.ceil(file.size / chunkSize);
-    const initResponse = await this.initUpload(file.name);
+    const normalized = files.filter((file) => {
+      const isPdf =
+        file.type === "application/pdf" ||
+        file.name.toLowerCase().endsWith(".pdf");
+      return isPdf;
+    });
 
-    for (let i = 0; i < totalChunks; i++) {
-      const chunk = file.slice(i * chunkSize, (i + 1) * chunkSize);
-      const progress = Math.round(((i + 1) / totalChunks) * 100);
+    const newEntries = normalized.filter((file) => {
+      const signature = this.signatureFor(file);
+      return !this.queue.some((entry) => entry.signature === signature);
+    });
 
-      try {
-        await this.uploadChunk(
-          initResponse.upload_id,
-          chunk,
-          i + 1,
-          onProgress
-        );
+    if (newEntries.length === 0) {
+      return;
+    }
 
-        // Update progress bar
-        this.progressBar.setProgress(progress);
-      } catch (error) {
-        console.error("Error uploading chunk", error);
-        // this.resetUploadFunctionality();
-        return;
+    newEntries.forEach((file) => {
+      const entry = this.createQueueEntry(file);
+      this.queue.push(entry);
+      this.elements.queueList.appendChild(entry.element);
+    });
+
+    this.updateControlsVisibility();
+    this.updateSummary();
+
+    if (this.isRunning) {
+      this.processQueue();
+    }
+  }
+
+  signatureFor(file) {
+    return `${file.name}-${file.size}-${file.lastModified}`;
+  }
+
+  createQueueEntry(file) {
+    const element = document.createElement("li");
+    element.classList.add("upload-item");
+
+    const header = document.createElement("div");
+    header.classList.add("upload-item-header");
+
+    const name = document.createElement("span");
+    name.classList.add("upload-item-name");
+    name.textContent = file.name;
+
+    const status = document.createElement("span");
+    status.classList.add("upload-item-status");
+    status.textContent = "pending";
+
+    header.appendChild(name);
+    header.appendChild(status);
+
+    const track = document.createElement("div");
+    track.classList.add("upload-progress-track");
+
+    const fill = document.createElement("div");
+    fill.classList.add("upload-progress-fill", "pending");
+    fill.style.width = "0%";
+
+    track.appendChild(fill);
+    element.appendChild(header);
+    element.appendChild(track);
+
+    return {
+      id: crypto.randomUUID ? crypto.randomUUID() : `upload-${Date.now()}-${Math.random()}`,
+      file,
+      status: "pending",
+      progress: 0,
+      uploadId: null,
+      element,
+      statusEl: status,
+      progressEl: fill,
+      signature: this.signatureFor(file),
+    };
+  }
+
+  updateControlsVisibility() {
+    const hasQueue = this.queue.length > 0;
+    const { controls } = this.elements;
+    controls.classList.toggle("hidden", !hasQueue);
+    this.updateStartButtonState();
+  }
+
+  updateSummary() {
+    const { summary } = this.elements;
+    const total = this.queue.length;
+    const completed = this.queue.filter((entry) => entry.status === "completed")
+      .length;
+    summary.textContent = `${completed}/${total} completed`;
+  }
+
+  updateStartButtonState() {
+    const { startButton } = this.elements;
+    const hasPending = this.queue.some((entry) => entry.status === "pending");
+    const hasErrors = this.queue.some((entry) => entry.status === "error");
+    if (this.isRunning) {
+      startButton.textContent = "uploading...";
+      startButton.classList.add("disabled");
+      startButton.disabled = true;
+      return;
+    }
+
+    startButton.textContent = hasErrors && !hasPending ? "retry failed uploads" : "start upload";
+    const enable = hasPending || hasErrors;
+    startButton.disabled = !enable;
+    startButton.classList.toggle("disabled", !enable);
+  }
+
+  startUploads() {
+    if (this.isRunning) {
+      return;
+    }
+
+    let hasPending = this.queue.some((entry) => entry.status === "pending");
+
+    if (!hasPending) {
+      const hasErrors = this.queue.some((entry) => entry.status === "error");
+      if (hasErrors) {
+        this.queue.forEach((entry) => {
+          if (entry.status === "error") {
+            this.resetEntryToPending(entry);
+          }
+        });
+        hasPending = this.queue.some((entry) => entry.status === "pending");
       }
     }
 
-    await this.completeUpload(initResponse.upload_id);
+    if (!hasPending) {
+      return;
+    }
 
-    this.progressBar.setProgress(100);
-    this.resetUploadFunctionality();
+    this.isRunning = true;
+    this.updateStartButtonState();
+    this.processQueue();
+  }
+
+  processQueue() {
+    if (!this.isRunning) {
+      return;
+    }
+
+    while (this.activeUploads < this.maxConcurrent) {
+      const nextEntry = this.queue.find((entry) => entry.status === "pending");
+      if (!nextEntry) {
+        break;
+      }
+      this.uploadEntry(nextEntry);
+    }
+
+    if (
+      this.activeUploads === 0 &&
+      this.queue.every(
+        (entry) => entry.status === "completed" || entry.status === "error"
+      )
+    ) {
+      this.finishRun();
+    }
+  }
+
+  async uploadEntry(entry) {
+    this.activeUploads += 1;
+    this.setEntryStatus(entry, "uploading");
+    this.setEntryProgress(entry, 0);
+
+    const file = entry.file;
+    const chunkSize = 1 * 1024 * 1024;
+    const totalChunks = Math.max(1, Math.ceil(file.size / chunkSize));
+
+    try {
+      const initResponse = await this.initUpload(file.name);
+      entry.uploadId = initResponse.upload_id;
+
+      for (let index = 0; index < totalChunks; index++) {
+        const chunk = file.slice(index * chunkSize, (index + 1) * chunkSize);
+        await this.uploadChunk(entry.uploadId, chunk, index + 1);
+        const progress = Math.round(((index + 1) / totalChunks) * 100);
+        this.setEntryProgress(entry, progress);
+      }
+
+      await this.completeUpload(entry.uploadId);
+      this.markEntryCompleted(entry);
+      this.afterUpload();
+    } catch (error) {
+      console.error(`Error uploading ${file.name}`, error);
+      this.markEntryError(entry, error);
+    } finally {
+      this.activeUploads -= 1;
+      this.updateSummary();
+      this.processQueue();
+    }
+  }
+
+  setEntryStatus(entry, status) {
+    entry.status = status;
+    entry.statusEl.textContent = status;
+
+    entry.element.classList.remove("pending", "uploading", "completed", "error");
+    entry.element.classList.add(status);
+  }
+
+  setEntryProgress(entry, percentage) {
+    entry.progress = percentage;
+    entry.progressEl.classList.remove("pending");
+    entry.progressEl.style.width = `${percentage}%`;
+  }
+
+  markEntryCompleted(entry) {
+    this.setEntryStatus(entry, "completed");
+    this.setEntryProgress(entry, 100);
+  }
+
+  markEntryError(entry) {
+    entry.status = "error";
+    entry.statusEl.textContent = "error";
+    entry.element.classList.remove("pending", "uploading", "completed");
+    entry.element.classList.add("error");
+  }
+
+  resetEntryToPending(entry) {
+    entry.status = "pending";
+    entry.statusEl.textContent = "pending";
+    entry.element.classList.remove("uploading", "completed", "error");
+    entry.progressEl.classList.add("pending");
+    entry.progressEl.style.width = "0%";
+    entry.progress = 0;
+  }
+
+  finishRun() {
+    this.isRunning = false;
+    this.updateStartButtonState();
+    this.updateSummary();
   }
 
   async initUpload(fileName) {
@@ -343,26 +502,18 @@ class Uploader {
     return response.data;
   }
 
-  async uploadChunk(uploadId, chunk, partNumber, onProgress) {
+  async uploadChunk(uploadId, chunk, partNumber) {
     const formData = new FormData();
     formData.append("chunk", chunk);
     formData.append("upload_id", uploadId);
     formData.append("part_number", partNumber);
-    await axios.post("/upload?state=continue", formData, {
-      onUploadProgress: (e) => {
-        onProgress(e);
-      },
-    });
+    await axios.post("/upload?state=continue", formData);
   }
 
   async completeUpload(uploadId) {
     const formData = new FormData();
     formData.append("upload_id", uploadId);
     await axios.post("/upload?state=complete", formData);
-  }
-
-  async init() {
-    await this.attachFileUploadListener();
   }
 }
 
@@ -372,5 +523,5 @@ document.addEventListener("DOMContentLoaded", () => {
     window.app.loadMetadata();
     window.app.loadBooks();
   };
-  window.uploader = new Uploader(afterUpload);
+  window.uploader = new MassUploader(afterUpload);
 });
