@@ -184,6 +184,12 @@
       max-width: 96rem;
     }
   }
+  .mt-1 {
+    margin-top: calc(var(--spacing) * 1);
+  }
+  .mt-2 {
+    margin-top: calc(var(--spacing) * 2);
+  }
   .block {
     display: block;
   }
@@ -208,17 +214,29 @@
   .w-full {
     width: 100%;
   }
+  .cursor-pointer {
+    cursor: pointer;
+  }
   .flex-col {
     flex-direction: column;
   }
   .flex-row {
     flex-direction: row;
   }
+  .justify-between {
+    justify-content: space-between;
+  }
+  .gap-3 {
+    gap: calc(var(--spacing) * 3);
+  }
   .gap-5 {
     gap: calc(var(--spacing) * 5);
   }
   .gap-10 {
     gap: calc(var(--spacing) * 10);
+  }
+  .gap-x-2 {
+    column-gap: calc(var(--spacing) * 2);
   }
   .border-1 {
     border-style: var(--tw-border-style);
@@ -227,11 +245,29 @@
   .border-\[\#ccc\] {
     border-color: #ccc;
   }
+  .bg-\[\#e0e0e0\] {
+    background-color: #e0e0e0;
+  }
+  .bg-\[\#f0f0f0\] {
+    background-color: #f0f0f0;
+  }
   .p-10 {
     padding: calc(var(--spacing) * 10);
   }
+  .px-2 {
+    padding-inline: calc(var(--spacing) * 2);
+  }
+  .py-3 {
+    padding-block: calc(var(--spacing) * 3);
+  }
+  .py-4 {
+    padding-block: calc(var(--spacing) * 4);
+  }
   .pl-2 {
     padding-left: calc(var(--spacing) * 2);
+  }
+  .text-center {
+    text-align: center;
   }
   .text-sm {
     font-size: var(--text-sm);
@@ -250,6 +286,13 @@
   }
   .filter {
     filter: var(--tw-blur,) var(--tw-brightness,) var(--tw-contrast,) var(--tw-grayscale,) var(--tw-hue-rotate,) var(--tw-invert,) var(--tw-saturate,) var(--tw-sepia,) var(--tw-drop-shadow,);
+  }
+  .hover\:bg-\[\#e0e0e0\] {
+    &:hover {
+      @media (hover: hover) {
+        background-color: #e0e0e0;
+      }
+    }
   }
 }
 @font-face {
@@ -544,6 +587,57 @@ img {
 .upload-progress-fill.pending {
   background-color: #cbd5f5;
 }
+.upload-progress-bar {
+  display: flex;
+  gap: 4px;
+  justify-content: space-between;
+  width: 100%;
+  height: 20px;
+  margin: 8px 0;
+}
+.progress-box {
+  flex: 1;
+  height: 100%;
+  background-color: #e0e0e0;
+  border: 1px solid #ccc;
+  border-radius: 2px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+.progress-box.filled {
+  background-color: #22c55e;
+  border-color: #16a34a;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
+}
+.progress-box.filling {
+  background: linear-gradient( 90deg, #22c55e 0%, #22c55e 50%, #e0e0e0 50%, #e0e0e0 100% );
+  background-size: 200% 100%;
+  animation: fillBox 0.5s ease-in-out forwards;
+  border-color: #16a34a;
+}
+@keyframes fillBox {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: 0% 0;
+    background: #22c55e;
+  }
+}
+.progress-box.active {
+  animation: pulse 1s infinite;
+}
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 12px rgba(34, 197, 94, 0.6);
+  }
+}
 @property --tw-border-style {
   syntax: "*";
   inherits: false;
@@ -605,6 +699,11 @@ img {
 @property --tw-drop-shadow-size {
   syntax: "*";
   inherits: false;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.5;
+  }
 }
 @layer properties {
   @supports ((-webkit-hyphens: none) and (not (margin-trim: inline))) or ((-moz-orient: inline) and (not (color:rgb(from red r g b)))) {
