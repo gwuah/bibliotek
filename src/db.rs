@@ -14,10 +14,6 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "002_seed_categories.sql",
         include_str!("migrations/002_seed_categories.sql"),
     ),
-    (
-        "003_seed_db.sql",
-        include_str!("migrations/003_seed_db.sql"),
-    ),
 ];
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -51,7 +51,7 @@ async fn main() {
         .route("/index.html", get(serve_index))
         .route("/upload", get(show_form))
         .route("/books", get(get_books))
-        .route("/books/{id}", put(update_book))
+        .route("/books/:id", put(update_book))
         .route("/metadata", get(get_metadata))
         .route("/authors", post(create_author))
         .route("/tags", post(create_tag))
