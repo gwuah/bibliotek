@@ -4,7 +4,6 @@ use aws_sdk_s3::Client;
 use aws_sdk_s3::types::{Bucket, CompletedMultipartUpload, CompletedPart};
 use std::collections::HashMap;
 use std::env;
-use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 pub struct UploadSession {
@@ -141,8 +140,26 @@ impl ObjectStorage {
         Ok(etag)
     }
 
+    pub async fn get_upload_chunks(&self, upload_id: &str) -> Result<Vec<u8>, ObjectStorageError> {
+        let sessions = self
+            .sessions
+            .lock()
+            .map_err(|e| ObjectStorageError::LockError(e.to_string()))?;
+
+        let session = sessions
+            .get(upload_id)
+            .ok_or(ObjectStorageError::SessionNotFound(upload_id.to_string()))?;
+
+        let chunks = session
+            .chunks
+            .lock()
+            .map_err(|e| ObjectStorageError::LockError(e.to_string()))?;
+
+        Ok(chunks.clone())
+    }
+
     pub async fn complete_upload(&self, upload_id: &str) -> Result<String, ObjectStorageError> {
-        let (key, chunks, locked_parts) = {
+        let (key, locked_parts) = {
             let sessions = self
                 .sessions
                 .lock()
@@ -152,15 +169,8 @@ impl ObjectStorage {
                 .get(upload_id)
                 .ok_or(ObjectStorageError::SessionNotFound(upload_id.to_string()))?;
 
-            let chunks = session
-                .chunks
-                .lock()
-                .map_err(|e| ObjectStorageError::LockError(e.to_string()))?;
-
-            (session.key.clone(), chunks.clone(), session.parts.clone())
+            (session.key.clone(), session.parts.clone())
         };
-
-        // self.write_chunks_to_file(&chunks, upload_id).await?;
 
         println!("key: {:?}, upload_id: {:?}", key, upload_id);
 
@@ -197,32 +207,30 @@ impl ObjectStorage {
         Ok(crate::get_s3_url(&self.service, &bucket, &location))
     }
 
-    async fn write_chunks_to_file(
-        &self,
-        chunks: &[u8],
-        upload_id: &str,
-    ) -> Result<(), ObjectStorageError> {
-        use tokio::fs::File;
-        use tokio::io::AsyncWriteExt;
+    pub async fn download_file(&self, key: &str) -> Result<Vec<u8>, ObjectStorageError> {
+        let response = self
+            .client
+            .get_object()
+            .bucket(&self.bucket)
+            .key(key)
+            .send()
+            .await
+            .map_err(|e| ObjectStorageError::S3Error(Box::new(e)))?;
 
-        let filename = format!("upload_{}", upload_id);
-        let mut file = File::create(&filename).await.map_err(|e| {
-            ObjectStorageError::LockError(format!("Failed to create file {}: {}", filename, e))
-        })?;
+        let body = response
+            .body
+            .collect()
+            .await
+            .map_err(|e| ObjectStorageError::S3Error(Box::new(e)))?;
 
-        file.write_all(chunks).await.map_err(|e| {
-            ObjectStorageError::LockError(format!("Failed to write to file {}: {}", filename, e))
-        })?;
+        Ok(body.to_vec())
+    }
 
-        file.flush().await.map_err(|e| {
-            ObjectStorageError::LockError(format!("Failed to flush file {}: {}", filename, e))
-        })?;
-
-        println!(
-            "Successfully wrote {} bytes to file: {}",
-            chunks.len(),
-            filename
-        );
-        Ok(())
+    pub fn extract_key_from_url(&self, url: &str) -> Option<String> {
+        if let Some(key_start) = url.rfind('/') {
+            Some(url[key_start + 1..].to_string())
+        } else {
+            None
+        }
     }
 }

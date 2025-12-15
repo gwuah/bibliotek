@@ -18,7 +18,7 @@
             class="w-full border-1 border-[#ccc] pl-2"
           />
         </div>
-        <div id="single-upload-container" class="flex flex-col gap-3">
+        <!-- <div id="single-upload-container" class="flex flex-col gap-3">
           <div id="upload-progress-container" class="w-full hidden">
             <div class="text-xs text-center mt-1 flex flex-row justify-between">
               <span id="progress-percentage">0%</span>
@@ -59,6 +59,19 @@
               Upload
             </button>
           </div>
+        </div> -->
+
+        <div id="mass-upload-controls" class="upload-controls hidden">
+          <button
+            id="mass-start-upload-button"
+            class="start-upload-button w-full border-1 border-[#ccc] text-sm mt-2 py-4 cursor-pointer bg-[#f0f0f0] hover:bg-[#e0e0e0]"
+          >
+            Upload
+          </button>
+
+          <span id="mass-upload-summary" class="upload-summary"
+            >0/0 completed</span
+          >
         </div>
 
         <div class="uploader-panel">
@@ -74,20 +87,11 @@
               <dropzone-file></dropzone-file>
               <div class="file-drop-text">
                 <p class="text-sm font-bold">drop or click to add pdfs</p>
-                <p class="text-xs text-[#555]">
+                <!-- <p class="text-xs text-[#555]">
                   you can also paste files from clipboard
-                </p>
+                </p> -->
               </div>
             </div>
-          </div>
-
-          <div id="mass-upload-controls" class="upload-controls hidden">
-            <button id="mass-start-upload-button" class="start-upload-button">
-              start upload
-            </button>
-            <span id="mass-upload-summary" class="upload-summary"
-              >0/0 completed</span
-            >
           </div>
 
           <ul id="mass-upload-queue" class="upload-queue"></ul>

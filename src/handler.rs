@@ -11,6 +11,7 @@ use tracing::info;
 
 use crate::{
     api::{APIResponse, QueryParams},
+    pdf_extract::{extract_metadata_from_bytes, infer_category_from_metadata, parse_keywords},
     s3::ObjectStorage,
 };
 use crate::{db::Database, error::HandlerError};
@@ -170,15 +171,6 @@ async fn handle_continue_upload(
     Ok(response)
 }
 
-async fn handle_complete_upload(
-    state: &AppState,
-    multipart: &mut Multipart,
-) -> Result<String, HandlerError> {
-    let form = extract_form(multipart).await?;
-    let response = state.s3.complete_upload(&form.upload_id).await?;
-    Ok(response)
-}
-
 pub async fn upload(
     State(state): State<AppState>,
     Query(qp): Query<QueryParams>,
@@ -229,7 +221,23 @@ pub async fn upload(
     }
 
     if upload_state == "complete" {
-        let object_url = match handle_complete_upload(&state, &mut multipart).await {
+        let form = match extract_form(&mut multipart).await {
+            Ok(form) => form,
+            Err(e) => {
+                tracing::error!("failed to extract form: {}", e);
+                return crate::bad_request(APIResponse::new_from_msg("failed to extract form"));
+            }
+        };
+
+        let chunks = match state.s3.get_upload_chunks(&form.upload_id).await {
+            Ok(chunks) => chunks,
+            Err(e) => {
+                tracing::warn!("failed to get chunks for metadata extraction: {}", e);
+                vec![]
+            }
+        };
+
+        let object_url = match state.s3.complete_upload(&form.upload_id).await {
             Ok(object_url) => object_url,
             Err(e) => {
                 tracing::error!("failed to complete upload: {}", e);
@@ -237,12 +245,107 @@ pub async fn upload(
             }
         };
 
-        return crate::good_response(APIResponse {
+        let mut created_book = None;
+        if !chunks.is_empty() {
+            match extract_metadata_from_bytes(&chunks).await {
+                Ok(pdf_metadata) => {
+                    tracing::info!(
+                        "Extracted PDF metadata: title={:?}, author={:?}",
+                        pdf_metadata.title,
+                        pdf_metadata.author
+                    );
+
+                    let author_names: Vec<String> = if let Some(author) = &pdf_metadata.author {
+                        author
+                            .split(',')
+                            .map(|s| s.trim().to_string())
+                            .filter(|s| !s.is_empty())
+                            .collect()
+                    } else {
+                        vec![]
+                    };
+
+                    let tag_names = if let Some(keywords) = &pdf_metadata.keywords {
+                        parse_keywords(keywords)
+                    } else {
+                        vec![]
+                    };
+
+                    let mut category_names = vec![];
+                    if let Some(category) = infer_category_from_metadata(
+                        pdf_metadata.subject.as_deref(),
+                        pdf_metadata.keywords.as_deref(),
+                    ) {
+                        category_names.push(category);
+                    }
+
+                    let title = pdf_metadata.title.unwrap_or_else(|| {
+                        let name = &form.file_name;
+                        let without_ext = if let Some(dot_pos) = name.rfind('.') {
+                            &name[..dot_pos]
+                        } else {
+                            name
+                        };
+                        without_ext
+                            .replace('_', " ")
+                            .replace('-', " ")
+                            .trim()
+                            .to_string()
+                    });
+
+                    match state
+                        .db
+                        .create_book(
+                            &title,
+                            &object_url,
+                            None,
+                            pdf_metadata.subject.as_deref(),
+                            None,
+                            None,
+                            &author_names,
+                            &tag_names,
+                            &category_names,
+                        )
+                        .await
+                    {
+                        Ok(book_id) => {
+                            tracing::info!("Created book with ID: {}", book_id);
+                            match state.db.get_book_by_id(book_id).await {
+                                Ok(Some(book)) => {
+                                    created_book = Some(book);
+                                }
+                                Ok(None) => {
+                                    tracing::warn!("Book {} was created but not found", book_id);
+                                }
+                                Err(e) => {
+                                    tracing::warn!("Failed to fetch created book: {}", e);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            tracing::error!("Failed to create book record: {}", e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to extract PDF metadata: {}", e);
+                }
+            }
+        }
+
+        let mut response = APIResponse {
             books: vec![],
             status: "upload completed".to_owned(),
             upload_id: Some(object_url),
             metadata: None,
-        });
+        };
+
+        if let Some(book) = created_book {
+            response.books.push(book);
+            response.status = "upload completed and book created".to_owned();
+        }
+
+        return crate::good_response(response);
     }
 
     (
@@ -284,13 +387,6 @@ pub async fn serve_index() -> impl IntoResponse {
 }
 #[cfg(test)]
 mod tests {
-    // use super::*;
-
     #[test]
-    fn test_params_deserialize() {
-        // let params = QueryParams {
-        //     q: Some("test".to_string()),
-        // };
-        // assert_eq!(params.q, Some("test".to_string()));
-    }
+    fn test_params_deserialize() {}
 }
