@@ -178,22 +178,19 @@ author_count AS (
     SELECT authors.id, authors.name, COUNT(book_authors.id) as count 
     FROM authors 
     LEFT JOIN book_authors ON authors.id = book_authors.author_id
-    GROUP BY authors.id, authors.name 
-    HAVING count > 0
+    GROUP BY authors.id, authors.name
 ),
 category_count AS (
     SELECT categories.id, categories.name, COUNT(book_categories.id) as count 
     FROM categories 
     LEFT JOIN book_categories ON categories.id = book_categories.category_id
-    GROUP BY categories.id, categories.name 
-    HAVING count > 0
+    GROUP BY categories.id, categories.name
 ),
 tag_count AS (
     SELECT tags.id, tags.name, COUNT(book_tags.id) as count 
     FROM tags 
     LEFT JOIN book_tags ON tags.id = book_tags.tag_id
-    GROUP BY tags.id, tags.name 
-    HAVING count > 0
+    GROUP BY tags.id, tags.name
 ),
 ratings_count AS (
 SELECT 
@@ -474,5 +471,163 @@ GROUP BY books.id, books.title, books.url, books.cover_url, books.ratings
         }
 
         Ok(book_id)
+    }
+
+    pub async fn update_book(
+        &self,
+        book_id: i32,
+        title: &str,
+        author_ids: &[i32],
+        tag_ids: &[i32],
+        category_ids: &[i32],
+    ) -> Result<()> {
+        self.conn.execute("BEGIN TRANSACTION", ()).await?;
+
+        let result = self
+            .update_book_internal(book_id, title, author_ids, tag_ids, category_ids)
+            .await;
+
+        match result {
+            Ok(_) => {
+                self.conn.execute("COMMIT", ()).await?;
+                Ok(())
+            }
+            Err(e) => {
+                let _ = self.conn.execute("ROLLBACK", ()).await;
+                Err(e)
+            }
+        }
+    }
+
+    async fn update_book_internal(
+        &self,
+        book_id: i32,
+        title: &str,
+        author_ids: &[i32],
+        tag_ids: &[i32],
+        category_ids: &[i32],
+    ) -> Result<()> {
+        self.conn
+            .execute(
+                "UPDATE books SET title = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+                libsql::params![title, book_id],
+            )
+            .await?;
+
+        self.conn
+            .execute(
+                "DELETE FROM book_authors WHERE book_id = ?",
+                libsql::params![book_id],
+            )
+            .await?;
+        for author_id in author_ids {
+            self.conn
+                .execute(
+                    "INSERT OR IGNORE INTO book_authors (book_id, author_id) VALUES (?, ?)",
+                    libsql::params![book_id, *author_id],
+                )
+                .await?;
+        }
+
+        self.conn
+            .execute(
+                "DELETE FROM book_tags WHERE book_id = ?",
+                libsql::params![book_id],
+            )
+            .await?;
+        for tag_id in tag_ids {
+            self.conn
+                .execute(
+                    "INSERT OR IGNORE INTO book_tags (book_id, tag_id) VALUES (?, ?)",
+                    libsql::params![book_id, *tag_id],
+                )
+                .await?;
+        }
+
+        self.conn
+            .execute(
+                "DELETE FROM book_categories WHERE book_id = ?",
+                libsql::params![book_id],
+            )
+            .await?;
+        for category_id in category_ids {
+            self.conn
+                .execute(
+                    "INSERT OR IGNORE INTO book_categories (book_id, category_id) VALUES (?, ?)",
+                    libsql::params![book_id, *category_id],
+                )
+                .await?;
+        }
+
+        Ok(())
+    }
+
+    pub async fn create_author(&self, name: &str) -> Result<Author> {
+        self.conn
+            .execute(
+                "INSERT INTO authors (name) VALUES (?)",
+                libsql::params![name],
+            )
+            .await?;
+        let mut rows = self
+            .conn
+            .query(
+                "SELECT id, name FROM authors WHERE name = ?",
+                libsql::params![name],
+            )
+            .await?;
+        if let Some(row) = rows.next().await? {
+            Ok(Author {
+                id: row.get(0)?,
+                name: row.get(1)?,
+            })
+        } else {
+            anyhow::bail!("Failed to create author")
+        }
+    }
+
+    pub async fn create_tag(&self, name: &str) -> Result<Tag> {
+        self.conn
+            .execute("INSERT INTO tags (name) VALUES (?)", libsql::params![name])
+            .await?;
+        let mut rows = self
+            .conn
+            .query(
+                "SELECT id, name FROM tags WHERE name = ?",
+                libsql::params![name],
+            )
+            .await?;
+        if let Some(row) = rows.next().await? {
+            Ok(Tag {
+                id: row.get(0)?,
+                name: row.get(1)?,
+            })
+        } else {
+            anyhow::bail!("Failed to create tag")
+        }
+    }
+
+    pub async fn create_category(&self, name: &str) -> Result<Category> {
+        self.conn
+            .execute(
+                "INSERT INTO categories (name) VALUES (?)",
+                libsql::params![name],
+            )
+            .await?;
+        let mut rows = self
+            .conn
+            .query(
+                "SELECT id, name FROM categories WHERE name = ?",
+                libsql::params![name],
+            )
+            .await?;
+        if let Some(row) = rows.next().await? {
+            Ok(Category {
+                id: row.get(0)?,
+                name: row.get(1)?,
+            })
+        } else {
+            anyhow::bail!("Failed to create category")
+        }
     }
 }

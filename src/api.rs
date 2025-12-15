@@ -10,6 +10,19 @@ pub struct QueryParams {
     pub state: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct UpdateBookRequest {
+    pub title: String,
+    pub author_ids: Vec<i32>,
+    pub tag_ids: Vec<i32>,
+    pub category_ids: Vec<i32>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateEntityRequest {
+    pub name: String,
+}
+
 #[derive(Debug, Serialize, Default)]
 pub struct APIResponse {
     #[serde(skip_serializing_if = "String::is_empty")]
@@ -20,6 +33,11 @@ pub struct APIResponse {
     pub upload_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<MetadataAggregate>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct EntityResponse<T> {
+    pub entity: T,
 }
 
 impl APIResponse {

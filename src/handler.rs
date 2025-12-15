@@ -1,6 +1,6 @@
 use axum::{
     Json,
-    extract::{Multipart, Query, State},
+    extract::{Multipart, Path, Query, State},
     http::StatusCode,
     response::{Html, IntoResponse, Response},
 };
@@ -10,7 +10,7 @@ use std::sync::Arc;
 use tracing::info;
 
 use crate::{
-    api::{APIResponse, QueryParams},
+    api::{APIResponse, CreateEntityRequest, EntityResponse, QueryParams, UpdateBookRequest},
     pdf_extract::{extract_metadata_from_bytes, infer_category_from_metadata, parse_keywords},
     s3::ObjectStorage,
 };
@@ -385,6 +385,88 @@ pub async fn serve_index() -> impl IntoResponse {
         }
     }
 }
+
+pub async fn update_book(
+    State(state): State<AppState>,
+    Path(book_id): Path<i32>,
+    Json(payload): Json<UpdateBookRequest>,
+) -> Response {
+    match state
+        .db
+        .update_book(
+            book_id,
+            &payload.title,
+            &payload.author_ids,
+            &payload.tag_ids,
+            &payload.category_ids,
+        )
+        .await
+    {
+        Ok(_) => match state.db.get_book_by_id(book_id).await {
+            Ok(Some(book)) => (
+                StatusCode::OK,
+                Json(APIResponse {
+                    books: vec![book],
+                    status: "ok".to_owned(),
+                    upload_id: None,
+                    metadata: None,
+                }),
+            )
+                .into_response(),
+            _ => crate::good_response(APIResponse::new_from_msg("book updated")),
+        },
+        Err(e) => {
+            tracing::error!("failed to update book: {}", e);
+            crate::bad_request(APIResponse::new_from_msg("failed to update book"))
+        }
+    }
+}
+
+pub async fn create_author(
+    State(state): State<AppState>,
+    Json(payload): Json<CreateEntityRequest>,
+) -> Response {
+    match state.db.create_author(&payload.name).await {
+        Ok(author) => {
+            (StatusCode::CREATED, Json(EntityResponse { entity: author })).into_response()
+        }
+        Err(e) => {
+            tracing::error!("failed to create author: {}", e);
+            crate::bad_request(APIResponse::new_from_msg("failed to create author"))
+        }
+    }
+}
+
+pub async fn create_tag(
+    State(state): State<AppState>,
+    Json(payload): Json<CreateEntityRequest>,
+) -> Response {
+    match state.db.create_tag(&payload.name).await {
+        Ok(tag) => (StatusCode::CREATED, Json(EntityResponse { entity: tag })).into_response(),
+        Err(e) => {
+            tracing::error!("failed to create tag: {}", e);
+            crate::bad_request(APIResponse::new_from_msg("failed to create tag"))
+        }
+    }
+}
+
+pub async fn create_category(
+    State(state): State<AppState>,
+    Json(payload): Json<CreateEntityRequest>,
+) -> Response {
+    match state.db.create_category(&payload.name).await {
+        Ok(category) => (
+            StatusCode::CREATED,
+            Json(EntityResponse { entity: category }),
+        )
+            .into_response(),
+        Err(e) => {
+            tracing::error!("failed to create category: {}", e);
+            crate::bad_request(APIResponse::new_from_msg("failed to create category"))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
