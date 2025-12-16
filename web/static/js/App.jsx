@@ -1,4 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
+
+function capitalizeTitle(title) {
+  if (!title) return title
+  return title
+    .toLowerCase()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+}
+
+function trimTitle(title, maxLength = 80) {
+  if (!title) return title
+  const capitalized = capitalizeTitle(title)
+  if (capitalized.length <= maxLength) return capitalized
+  return capitalized.substring(0, maxLength).trim() + '...'
+}
 
 function MassUploader({ onUploadComplete }) {
   const [queue, setQueue] = useState([])
@@ -172,7 +189,7 @@ function MassUploader({ onUploadComplete }) {
             >
               {isUploading ? 'uploading...' : 'Upload'}
             </button>
-            <span className="upload-summary">{completed}/{queue.length} completed</span>
+            {/* <span className="upload-summary">{completed}/{queue.length}</span> */}
           </div>
         </>
       )}
@@ -184,12 +201,34 @@ function MultiSelect({ options, selected, onChange, onCreate, placeholder, entit
   const [isOpen, setIsOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [creating, setCreating] = useState(false)
+  const [dropdownStyle, setDropdownStyle] = useState(null)
   const containerRef = useRef(null)
+  const dropdownRef = useRef(null)
+
+  const updateDropdownPosition = () => {
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect()
+      setDropdownStyle({
+        position: 'fixed',
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: rect.width,
+        zIndex: 9999
+      })
+    }
+  }
+
+  const openDropdown = () => {
+    updateDropdownPosition()
+    setIsOpen(true)
+  }
 
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
+      if (containerRef.current && !containerRef.current.contains(e.target) &&
+          dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setIsOpen(false)
+        setDropdownStyle(null)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -216,11 +255,13 @@ function MultiSelect({ options, selected, onChange, onCreate, placeholder, entit
     !options.some(o => o.name.toLowerCase() === search.toLowerCase()) &&
     !selected.some(s => s.name.toLowerCase() === search.toLowerCase())
 
+  const showDropdown = isOpen && dropdownStyle && (filtered.length > 0 || showCreateOption)
+
   return (
     <div ref={containerRef} className="relative">
       <div 
-        className="border border-gray-300 p-1 min-h-[32px] flex flex-wrap gap-1 cursor-text"
-        onClick={() => setIsOpen(true)}
+        className="border border-gray-300 px-1 min-h-[24px] flex flex-wrap gap-1 cursor-text items-center"
+        onClick={openDropdown}
       >
         {selected.map(s => (
           <span key={s.id} className="bg-amber-100 px-2 py-0.5 text-xs rounded flex items-center gap-1">
@@ -231,13 +272,17 @@ function MultiSelect({ options, selected, onChange, onCreate, placeholder, entit
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          onFocus={() => setIsOpen(true)}
+          onFocus={openDropdown}
           placeholder={selected.length ? '' : placeholder}
-          className="flex-1 min-w-[60px] outline-none text-sm bg-transparent"
+          className="flex-1 min-w-[60px] outline-none text-sm px-2 bg-transparent"
         />
       </div>
-      {isOpen && (filtered.length > 0 || showCreateOption) && (
-        <div className="absolute z-10 w-full bg-white border border-gray-300 mt-1 max-h-40 overflow-auto shadow-lg">
+      {showDropdown && createPortal(
+        <div 
+          ref={dropdownRef}
+          style={dropdownStyle}
+          className="bg-white border border-gray-300 max-h-40 overflow-auto shadow-lg"
+        >
           {filtered.map(o => (
             <div
               key={o.id}
@@ -255,7 +300,8 @@ function MultiSelect({ options, selected, onChange, onCreate, placeholder, entit
               {creating ? 'Creating...' : `Create "${search}"`}
             </div>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
@@ -347,24 +393,32 @@ function BookRow({ book, entities, onUpdate, onEntitiesChange }) {
   if (!editing) {
     return (
       <tr className="border-b border-gray-200">
-        <td className="py-2 px-2 font-medium">{book.title}</td>
-        <td className="py-2 px-2">
+        <td className=" px-2 font-medium" title={book.title}>{trimTitle(book.title)}</td>
+        <td className="px-2">
           {bookAuthors.map(a => (
             <span key={a.id} className="bg-amber-100 px-2 py-0.5 text-xs rounded mr-1">{a.name}</span>
           ))}
         </td>
-        <td className="py-2 px-2">
+        <td className="px-2">
           {bookTags.map(t => (
             <span key={t.id} className="border border-gray-400 px-2 py-0.5 text-xs rounded-full mr-1">{t.name}</span>
           ))}
         </td>
-        <td className="py-2 px-2">
+        <td className="px-2">
           {bookCategories.map(c => (
             <span key={c.id} className="border border-gray-400 px-2 py-0.5 text-xs rounded-full mr-1">{c.name}</span>
           ))}
         </td>
-        <td className="py-2 px-2">
-          <button onClick={() => setEditing(true)} className="border border-gray-400 px-3 py-1 text-sm hover:bg-gray-100">edit</button>
+        <td className="px-2">
+          <button onClick={() => setEditing(true)} className="border border-gray-400 px-3 text-sm hover:bg-gray-100 mr-1">edit</button>
+          <a 
+            href={book.download_url} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="border border-gray-400 px-3 text-sm hover:bg-gray-100 ml-1 inline-block"
+          >
+            view
+          </a>
         </td>
       </tr>
     )
@@ -372,14 +426,15 @@ function BookRow({ book, entities, onUpdate, onEntitiesChange }) {
 
   return (
     <tr className="border-b border-gray-200 bg-gray-50">
-      <td className="py-2 px-2">
+      <td className="px-2">
         <input
           value={form.title}
           onChange={(e) => setForm(f => ({ ...f, title: e.target.value }))}
-          className="w-full border border-gray-300 px-2 py-1 text-sm"
+          className="w-full border border-gray-300 px-2 text-sm"
+          placeholder="title..."
         />
       </td>
-      <td className="py-2 px-2">
+      <td className="px-2">
         <MultiSelect
           options={entities.authors}
           selected={form.authors}
@@ -389,7 +444,7 @@ function BookRow({ book, entities, onUpdate, onEntitiesChange }) {
           entityType="authors"
         />
       </td>
-      <td className="py-2 px-2">
+      <td className="px-2">
         <MultiSelect
           options={entities.tags}
           selected={form.tags}
@@ -399,7 +454,7 @@ function BookRow({ book, entities, onUpdate, onEntitiesChange }) {
           entityType="tags"
         />
       </td>
-      <td className="py-2 px-2">
+      <td className="px-2">
         <MultiSelect
           options={entities.categories}
           selected={form.categories}
@@ -409,12 +464,12 @@ function BookRow({ book, entities, onUpdate, onEntitiesChange }) {
           entityType="categories"
         />
       </td>
-      <td className="py-2 px-2 whitespace-nowrap">
-        <button onClick={handleCancel} className="border border-gray-400 px-3 py-1 text-sm hover:bg-gray-100 mr-1">cancel</button>
+      <td className="px-2 whitespace-nowrap">
+        <button onClick={handleCancel} className="border border-gray-400 px-3 text-sm hover:bg-gray-100 mr-1">cancel</button>
         <button 
           onClick={handleSave} 
           disabled={!hasChanges() || saving}
-          className={`border border-gray-400 px-3 py-1 text-sm ${hasChanges() && !saving ? 'bg-green-100 hover:bg-green-200' : 'opacity-50 cursor-not-allowed'}`}
+          className={`border border-gray-400 px-3 text-sm ${hasChanges() && !saving ? 'bg-green-100 hover:bg-green-200' : 'opacity-50 cursor-not-allowed'}`}
         >
           {saving ? 'saving...' : 'save'}
         </button>
@@ -430,15 +485,15 @@ function BookList({ books, entities, onBookUpdate, onEntitiesChange }) {
 
   return (
     <table className="w-full text-left text-sm">
-      <thead>
+      {/* <thead>
         <tr className="border-b-2 border-gray-300">
-          <th className="py-2 px-2 font-semibold">Title</th>
-          <th className="py-2 px-2 font-semibold">Authors</th>
-          <th className="py-2 px-2 font-semibold">Tags</th>
-          <th className="py-2 px-2 font-semibold">Categories</th>
-          <th className="py-2 px-2 font-semibold"></th>
+          <th className="px-2 font-semibold">Title</th>
+          <th className="px-2 font-semibold">Authors</th>
+          <th className="px-2 font-semibold">Tags</th>
+          <th className="px-2 font-semibold">Categories</th>
+          <th className="px-2 font-semibold"></th>
         </tr>
-      </thead>
+      </thead> */}
       <tbody>
         {books.map(book => (
           <BookRow 
@@ -504,7 +559,7 @@ export default function App() {
 
   return (
     <div className="p-10">
-      <div className="flex flex-row gap-10">
+      <div className="flex flex-row gap-10" style={{ alignItems: 'flex-start' }}>
         <div className="w-[280px] flex-shrink-0">
           <MassUploader onUploadComplete={loadData} />
         </div>
