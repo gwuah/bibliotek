@@ -180,17 +180,14 @@
   }
 }
 @layer utilities {
-  .absolute {
-    position: absolute;
+  .fixed {
+    position: fixed;
   }
   .relative {
     position: relative;
   }
   .static {
     position: static;
-  }
-  .z-10 {
-    z-index: 10;
   }
   .container {
     width: 100%;
@@ -210,11 +207,11 @@
       max-width: 96rem;
     }
   }
-  .mt-1 {
-    margin-top: calc(var(--spacing) * 1);
-  }
   .mr-1 {
     margin-right: calc(var(--spacing) * 1);
+  }
+  .ml-1 {
+    margin-left: calc(var(--spacing) * 1);
   }
   .block {
     display: block;
@@ -228,14 +225,17 @@
   .hidden {
     display: none;
   }
+  .inline-block {
+    display: inline-block;
+  }
   .h-5 {
     height: calc(var(--spacing) * 5);
   }
   .max-h-40 {
     max-height: calc(var(--spacing) * 40);
   }
-  .min-h-\[32px\] {
-    min-height: 32px;
+  .min-h-\[24px\] {
+    min-height: 24px;
   }
   .w-5 {
     width: calc(var(--spacing) * 5);
@@ -331,14 +331,14 @@
   .bg-white {
     background-color: var(--color-white);
   }
-  .p-1 {
-    padding: calc(var(--spacing) * 1);
-  }
   .p-4 {
     padding: calc(var(--spacing) * 4);
   }
   .p-10 {
     padding: calc(var(--spacing) * 10);
+  }
+  .px-1 {
+    padding-inline: calc(var(--spacing) * 1);
   }
   .px-2 {
     padding-inline: calc(var(--spacing) * 2);
@@ -351,9 +351,6 @@
   }
   .py-1 {
     padding-block: calc(var(--spacing) * 1);
-  }
-  .py-2 {
-    padding-block: calc(var(--spacing) * 2);
   }
   .py-4 {
     padding-block: calc(var(--spacing) * 4);
@@ -766,6 +763,159 @@ img {
     transform: scale(1.05);
     box-shadow: 0 0 12px rgba(34, 197, 94, 0.6);
   }
+}
+.light-container {
+  max-width: 700px;
+  display: flex;
+  flex-direction: column;
+}
+.light-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 3px;
+  margin-bottom: 10px;
+}
+.light-nav h1 {
+  margin: 0;
+  font-size: 18px;
+}
+.light-nav-buttons button {
+  cursor: pointer;
+  border: 1px solid #ccc;
+  border-radius: 2px;
+  padding: 5px;
+  background: white;
+}
+.light-nav-buttons button:hover {
+  background: #f0f0f0;
+}
+.light-nav-buttons button:first-child {
+  margin-right: 10px;
+}
+.light-stats {
+  display: grid;
+  column-gap: 15px;
+  grid-template-columns: 1fr 1fr;
+  margin-bottom: 20px;
+  text-align: center;
+}
+.light-stat {
+  color: black;
+  border: 1px solid #ccc;
+  text-align: center;
+  padding: 15px 10px;
+}
+.light-stat-desc {
+  margin-bottom: 5px;
+  margin-top: 0;
+  font-size: 12px;
+  font-weight: bold;
+}
+.light-stat-val {
+  font-size: 28px;
+  margin: 0;
+}
+.light-highlights-list {
+  border: 1px solid #ccc;
+}
+.light-url-item {
+  cursor: pointer;
+  padding: 12px 10px;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.light-url-item:last-child {
+  border-bottom: none;
+}
+.light-url-item:hover {
+  background-color: #f5f5f5;
+}
+.light-url-item span {
+  font-size: 14px;
+}
+.light-url-item-date {
+  font-size: 14px;
+  color: #666;
+}
+.light-domain-content {
+  display: none;
+}
+.light-domain-content.expanded {
+  display: block;
+}
+.light-path-item {
+  cursor: pointer;
+  padding: 10px 5px 10px 25px;
+  border-bottom: 1px solid #eee;
+  font-size: 14px;
+  color: #444;
+}
+.light-path-item:hover {
+  background-color: #f5f5f5;
+}
+.light-highlights-for-url {
+  display: none;
+  padding-left: 35px;
+  padding-right: 10px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+.light-highlights-for-url.expanded {
+  display: block;
+}
+.light-highlight-text {
+  margin-bottom: 13px;
+}
+.light-highlight-text p {
+  border-left: 2px solid #ccc;
+  margin-top: 0px;
+  margin-bottom: 0px;
+  padding-left: 8px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.app-nav {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #ccc;
+  margin-bottom: 20px;
+}
+.app-nav button {
+  padding: 12px 24px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  font-family: inherit;
+  color: #666;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: all 0.2s ease;
+}
+.app-nav button:hover {
+  color: #333;
+  background: #f5f5f5;
+}
+.app-nav button.active {
+  color: #000;
+  border-bottom-color: #000;
+  font-weight: 600;
+}
+.light-loading {
+  padding: 40px;
+  text-align: center;
+  color: #666;
+}
+.light-empty {
+  padding: 40px;
+  text-align: center;
+  color: #999;
+  font-style: italic;
 }
 @property --tw-border-style {
   syntax: "*";

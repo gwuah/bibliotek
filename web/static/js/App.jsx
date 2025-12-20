@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import HighlightsPage from './HighlightsPage.jsx'
 
 function capitalizeTitle(title) {
   if (!title) return title
@@ -509,7 +510,7 @@ function BookList({ books, entities, onBookUpdate, onEntitiesChange }) {
   )
 }
 
-export default function App() {
+function BooksPage() {
   const [books, setBooks] = useState([])
   const [entities, setEntities] = useState({ authors: [], tags: [], categories: [] })
   const [loading, setLoading] = useState(true)
@@ -558,20 +559,70 @@ export default function App() {
   }
 
   return (
-    <div className="p-10">
-      <div className="flex flex-row gap-10" style={{ alignItems: 'flex-start' }}>
-        <div className="w-[280px] flex-shrink-0">
-          <MassUploader onUploadComplete={loadData} />
-        </div>
-        <div className="flex-1 border border-gray-300 overflow-auto">
-          <BookList 
-            books={books} 
-            entities={entities}
-            onBookUpdate={handleBookUpdate}
-            onEntitiesChange={handleEntitiesChange}
-          />
-        </div>
+    <div className="flex flex-row gap-10" style={{ alignItems: 'flex-start' }}>
+      <div className="w-[280px] flex-shrink-0">
+        <MassUploader onUploadComplete={loadData} />
       </div>
+      <div className="flex-1 border border-gray-300 overflow-auto">
+        <BookList 
+          books={books} 
+          entities={entities}
+          onBookUpdate={handleBookUpdate}
+          onEntitiesChange={handleEntitiesChange}
+        />
+      </div>
+    </div>
+  )
+}
+
+// Path-based routing using History API
+const VALID_PAGES = ['books', 'highlights']
+
+function getPageFromPath() {
+  const path = window.location.pathname.slice(1) // Remove leading /
+  return VALID_PAGES.includes(path) ? path : 'books'
+}
+
+export default function App() {
+  const [currentPage, setCurrentPage] = useState(getPageFromPath)
+
+  // Listen for popstate (back/forward button)
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentPage(getPageFromPath())
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
+  const navigateTo = (page) => {
+    if (page !== currentPage) {
+      window.history.pushState({}, '', `/${page}`)
+      setCurrentPage(page)
+    }
+  }
+
+  return (
+    <div className="p-10">
+      {/* Navigation */}
+      <nav className="app-nav">
+        <button 
+          className={currentPage === 'books' ? 'active' : ''}
+          onClick={() => navigateTo('books')}
+        >
+          Books
+        </button>
+        <button 
+          className={currentPage === 'highlights' ? 'active' : ''}
+          onClick={() => navigateTo('highlights')}
+        >
+          Highlights
+        </button>
+      </nav>
+
+      {/* Page Content */}
+      {currentPage === 'books' && <BooksPage />}
+      {currentPage === 'highlights' && <HighlightsPage />}
     </div>
   )
 }
