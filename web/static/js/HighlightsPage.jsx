@@ -258,8 +258,8 @@ export default function HighlightsPage() {
       setLoading(true)
       setError(null)
 
-      // Fetch all resources with their annotations from Commonplace API
-      const response = await fetch('/commonplace/resources?limit=100')
+      // Fetch website resources with their annotations from Commonplace API
+      const response = await fetch('/commonplace/resources?limit=100&type=website')
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`)
       }

@@ -224,22 +224,42 @@ impl<'a> Commonplace<'a> {
         }
     }
 
-    pub async fn list_resources(&self, limit: i32, offset: i32) -> Result<Vec<Resource>> {
-        let query = r#"
-            SELECT id, title, type, created_at, updated_at
-            FROM resources
-            ORDER BY created_at DESC
-            LIMIT ? OFFSET ?
-        "#;
-
-        let mut rows = self
-            .conn
-            .query(query, libsql::params![limit, offset])
-            .await?;
+    pub async fn list_resources(&self, limit: i32, offset: i32, resource_type: Option<&str>) -> Result<Vec<Resource>> {
         let mut resources = Vec::new();
 
-        while let Some(row) = rows.next().await? {
-            resources.push(self.row_to_resource(&row)?);
+        if let Some(rtype) = resource_type {
+            let query = r#"
+                SELECT id, title, type, created_at, updated_at
+                FROM resources
+                WHERE type = ?
+                ORDER BY created_at DESC
+                LIMIT ? OFFSET ?
+            "#;
+
+            let mut rows = self
+                .conn
+                .query(query, libsql::params![rtype, limit, offset])
+                .await?;
+
+            while let Some(row) = rows.next().await? {
+                resources.push(self.row_to_resource(&row)?);
+            }
+        } else {
+            let query = r#"
+                SELECT id, title, type, created_at, updated_at
+                FROM resources
+                ORDER BY created_at DESC
+                LIMIT ? OFFSET ?
+            "#;
+
+            let mut rows = self
+                .conn
+                .query(query, libsql::params![limit, offset])
+                .await?;
+
+            while let Some(row) = rows.next().await? {
+                resources.push(self.row_to_resource(&row)?);
+            }
         }
 
         Ok(resources)

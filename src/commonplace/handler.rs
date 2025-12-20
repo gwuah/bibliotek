@@ -19,9 +19,11 @@ use crate::handler::AppState;
 // ============================================================================
 
 #[derive(Debug, Deserialize)]
-pub struct PaginationParams {
+pub struct ResourceListParams {
     pub limit: Option<i32>,
     pub offset: Option<i32>,
+    #[serde(rename = "type")]
+    pub resource_type: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -128,13 +130,16 @@ pub async fn get_resource_full(State(state): State<AppState>, Path(id): Path<i32
 
 pub async fn list_resources(
     State(state): State<AppState>,
-    Query(params): Query<PaginationParams>,
+    Query(params): Query<ResourceListParams>,
 ) -> Response {
     let lib = Commonplace::new(state.db.connection());
     let limit = params.limit.unwrap_or(50).min(100);
     let offset = params.offset.unwrap_or(0);
 
-    match lib.list_resources(limit, offset).await {
+    match lib
+        .list_resources(limit, offset, params.resource_type.as_deref())
+        .await
+    {
         Ok(resources) => success(resources),
         Err(e) => {
             tracing::error!("Failed to list resources: {}", e);
