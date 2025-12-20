@@ -1,14 +1,17 @@
 use std::sync::Arc;
 
+use axum::http::Method;
 use axum::{
     Router,
     routing::{get, post, put},
 };
+use bibliotek::commonplace;
 use bibliotek::db::Database;
 use bibliotek::handler::{
     AppState, create_author, create_category, create_tag, get_books, get_metadata, healthcheck,
     serve_index, update_book, upload,
 };
+use bibliotek::light;
 use bibliotek::s3::ObjectStorage;
 use bibliotek::{
     config::{Cli, Config},
@@ -17,6 +20,7 @@ use bibliotek::{
 use clap::Parser;
 use tokio::{signal, sync::mpsc};
 use tokio_util::sync::CancellationToken;
+use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::ServeDir;
 use tracing;
 
@@ -46,6 +50,12 @@ async fn main() {
     let cancellation_token = CancellationToken::new();
     let (shutdown_complete_tx, mut shutdown_complete_rx) = mpsc::channel::<()>(1);
 
+    // CORS configuration for browser extension requests
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
+        .allow_headers(Any);
+
     let app = Router::new()
         .route("/", get(healthcheck))
         .route("/index.html", get(serve_index))
@@ -57,7 +67,10 @@ async fn main() {
         .route("/tags", post(create_tag))
         .route("/categories", post(create_category))
         .route("/upload", post(upload))
+        .nest("/commonplace", commonplace::routes())
+        .nest("/light", light::routes())
         .nest_service("/static", ServeDir::new("web/static"))
+        .layer(cors)
         .with_state(AppState { db, s3 });
 
     let listener = tokio::net::TcpListener::bind(&address)

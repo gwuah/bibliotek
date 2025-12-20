@@ -8,10 +8,12 @@ use axum::{
 use std::error::Error;
 
 pub mod api;
+pub mod commonplace;
 pub mod config;
 pub mod db;
 pub mod error;
 pub mod handler;
+pub mod light;
 pub mod model;
 pub mod pdf_extract;
 pub mod s3;
