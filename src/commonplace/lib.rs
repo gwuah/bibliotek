@@ -41,7 +41,6 @@ impl ResourceType {
 pub struct Resource {
     pub id: i32,
     pub title: String,
-    pub book_title: Option<String>,
     #[serde(rename = "type")]
     pub resource_type: ResourceType,
     pub created_at: String,
@@ -94,7 +93,6 @@ pub struct Word {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateResource {
     pub title: String,
-    pub book_title: Option<String>,
     #[serde(rename = "type")]
     pub resource_type: ResourceType,
 }
@@ -102,7 +100,6 @@ pub struct CreateResource {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateResource {
     pub title: Option<String>,
-    pub book_title: Option<String>,
     #[serde(rename = "type")]
     pub resource_type: Option<ResourceType>,
 }
@@ -177,16 +174,16 @@ impl<'a> Commonplace<'a> {
 
     pub async fn create_resource(&self, input: CreateResource) -> Result<Resource> {
         let query = r#"
-            INSERT INTO resources (title, book_title, type)
-            VALUES (?, ?, ?)
-            RETURNING id, title, book_title, type, created_at, updated_at
+            INSERT INTO resources (title, type)
+            VALUES (?, ?)
+            RETURNING id, title, type, created_at, updated_at
         "#;
 
         let mut rows = self
             .conn
             .query(
                 query,
-                libsql::params![input.title, input.book_title, input.resource_type.as_str()],
+                libsql::params![input.title, input.resource_type.as_str()],
             )
             .await?;
 
@@ -199,7 +196,7 @@ impl<'a> Commonplace<'a> {
 
     pub async fn get_resource(&self, id: i32) -> Result<Option<Resource>> {
         let query = r#"
-            SELECT id, title, book_title, type, created_at, updated_at
+            SELECT id, title, type, created_at, updated_at
             FROM resources WHERE id = ?
         "#;
 
@@ -214,7 +211,7 @@ impl<'a> Commonplace<'a> {
 
     pub async fn list_resources(&self, limit: i32, offset: i32) -> Result<Vec<Resource>> {
         let query = r#"
-            SELECT id, title, book_title, type, created_at, updated_at
+            SELECT id, title, type, created_at, updated_at
             FROM resources
             ORDER BY created_at DESC
             LIMIT ? OFFSET ?
@@ -250,10 +247,6 @@ impl<'a> Commonplace<'a> {
             updates.push("title = ?");
             params.push(title.clone().into());
         }
-        if let Some(book_title) = &input.book_title {
-            updates.push("book_title = ?");
-            params.push(book_title.clone().into());
-        }
         if let Some(resource_type) = &input.resource_type {
             updates.push("type = ?");
             params.push(resource_type.as_str().into());
@@ -281,17 +274,16 @@ impl<'a> Commonplace<'a> {
     }
 
     fn row_to_resource(&self, row: &libsql::Row) -> Result<Resource> {
-        let type_str: String = row.get(3)?;
+        let type_str: String = row.get(2)?;
         let resource_type = ResourceType::from_str(&type_str)
             .ok_or_else(|| anyhow::anyhow!("Invalid resource type: {}", type_str))?;
 
         Ok(Resource {
             id: row.get(0)?,
             title: row.get(1)?,
-            book_title: row.get(2)?,
             resource_type,
-            created_at: row.get(4)?,
-            updated_at: row.get(5)?,
+            created_at: row.get(3)?,
+            updated_at: row.get(4)?,
         })
     }
 
