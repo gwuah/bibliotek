@@ -2,10 +2,13 @@ use std::sync::Arc;
 
 use axum::{
     Router,
-    routing::{get, post},
+    routing::{get, post, put},
 };
 use bibliotek::db::Database;
-use bibliotek::handler::{AppState, get_books, get_metadata, healthcheck, serve_index, upload};
+use bibliotek::handler::{
+    AppState, create_author, create_category, create_tag, get_books, get_metadata, healthcheck,
+    serve_index, update_book, upload,
+};
 use bibliotek::s3::ObjectStorage;
 use bibliotek::{
     config::{Cli, Config},
@@ -48,10 +51,12 @@ async fn main() {
         .route("/index.html", get(serve_index))
         .route("/upload", get(show_form))
         .route("/books", get(get_books))
+        .route("/books/:id", put(update_book))
         .route("/metadata", get(get_metadata))
+        .route("/authors", post(create_author))
+        .route("/tags", post(create_tag))
+        .route("/categories", post(create_category))
         .route("/upload", post(upload))
-        // .nest_service("/js", ServeDir::new("web/js"))
-        // .nest_service("/css", ServeDir::new("web/css"))
         .nest_service("/static", ServeDir::new("web/static"))
         .with_state(AppState { db, s3 });
 

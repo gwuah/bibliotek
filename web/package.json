@@ -4,15 +4,20 @@
   "description": "",
   "license": "ISC",
   "author": "",
-  "type": "commonjs",
-  "main": "simple.js",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build:css": "npx @tailwindcss/cli -i static/css/style.css -o static/css/output.css --watch --content 'static/**/*.{html,js}'"
+    "dev": "vite",
+    "build": "vite build",
+    "build:css": "npx @tailwindcss/cli -i static/css/style.css -o static/css/output.css --watch --content 'static/**/*.{html,js,jsx}'"
   },
   "dependencies": {
     "@tailwindcss/cli": "^4.1.12",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
     "tailwindcss": "^4.1.12"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.1",
+    "vite": "^5.4.2"
+  }
 }
