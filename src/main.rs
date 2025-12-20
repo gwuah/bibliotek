@@ -4,6 +4,7 @@ use axum::{
     Router,
     routing::{get, post, put},
 };
+use bibliotek::commonplace;
 use bibliotek::db::Database;
 use bibliotek::handler::{
     AppState, create_author, create_category, create_tag, get_books, get_metadata, healthcheck,
@@ -57,6 +58,7 @@ async fn main() {
         .route("/tags", post(create_tag))
         .route("/categories", post(create_category))
         .route("/upload", post(upload))
+        .nest("/commonplace", commonplace::routes())
         .nest_service("/static", ServeDir::new("web/static"))
         .with_state(AppState { db, s3 });
 

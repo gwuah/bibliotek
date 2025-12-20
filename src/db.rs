@@ -33,6 +33,11 @@ fn get_home_dir() -> Result<String> {
 }
 
 impl Database {
+    /// Get a reference to the underlying connection for use with the commonplace library
+    pub fn connection(&self) -> &Connection {
+        &self.conn
+    }
+
     pub async fn new(cfg: &Config) -> Result<Self> {
         let path = Path::new(&get_home_dir()?).join(cfg.app.get_db());
         let conn = Builder::new_local(path).build().await?.connect()?;
@@ -43,6 +48,14 @@ impl Database {
         tracing::debug!("established connection to db!");
 
         for (filename, sql) in MIGRATIONS {
+            tracing::info!("executing migration: {}", filename);
+            conn.execute_batch(sql)
+                .await
+                .map_err(|e| anyhow::anyhow!("failed to execute migration {filename}: {e}"))?;
+        }
+
+        // Run commonplace module migrations
+        for (filename, sql) in crate::commonplace::migrations() {
             tracing::info!("executing migration: {}", filename);
             conn.execute_batch(sql)
                 .await
