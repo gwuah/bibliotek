@@ -209,6 +209,21 @@ impl<'a> Commonplace<'a> {
         }
     }
 
+    pub async fn find_resource_by_title(&self, title: &str) -> Result<Option<Resource>> {
+        let query = r#"
+            SELECT id, title, type, created_at, updated_at
+            FROM resources WHERE title = ?
+        "#;
+
+        let mut rows = self.conn.query(query, libsql::params![title]).await?;
+
+        if let Some(row) = rows.next().await? {
+            Ok(Some(self.row_to_resource(&row)?))
+        } else {
+            Ok(None)
+        }
+    }
+
     pub async fn list_resources(&self, limit: i32, offset: i32) -> Result<Vec<Resource>> {
         let query = r#"
             SELECT id, title, type, created_at, updated_at

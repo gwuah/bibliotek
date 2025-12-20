@@ -34,31 +34,32 @@
 
 ## Tasks
 
-### Backend (Rust - Commonplace)
+### Backend (Rust - Light Module)
 
-- [ ] **1. Add helper methods to `lib.rs`**
+> **Note**: The sync logic lives in `src/light/` as a separate module, keeping `commonplace` as a generic library.
 
-  - [ ] `find_resource_by_title(title: &str)` - Find resource by URL
-  - [ ] `annotation_exists_by_group_id(resource_id, group_id)` - Check for duplicate annotations
+- [x] **1. Add helper methods to `commonplace/lib.rs`**
 
-- [ ] **2. Add sync handler to `handler.rs`**
+  - [x] `find_resource_by_title(title: &str)` - Find resource by URL
 
-  - [ ] Define `LightHighlight` struct (chunks, date, groupID, repr, url)
-  - [ ] Define `SyncRequest` struct (HashMap<String, Vec<LightHighlight>>)
-  - [ ] Define `SyncResponse` struct (resources_created, annotations_created, annotations_skipped)
-  - [ ] Implement `sync_highlights` handler:
+- [x] **2. Create `src/light/` module with sync handler**
+
+  - [x] Define `LightHighlight` struct (chunks, date, groupID, repr, url)
+  - [x] Define `SyncRequest` struct (HashMap<String, Vec<LightHighlight>>)
+  - [x] Define `SyncResponse` struct (resources_created, annotations_created, annotations_skipped)
+  - [x] Implement `sync_highlights` handler:
     - Find or create Resource for each URL
     - Check if annotation exists (by groupID)
     - Create new annotations, skip existing ones
     - Return sync statistics
 
-- [ ] **3. Add sync route to `routes.rs`**
+- [x] **3. Add sync route to `src/light/routes.rs`**
 
-  - [ ] Add `POST /sync` endpoint
+  - [x] Add `POST /sync` endpoint
 
-- [ ] **4. Enable CORS in `main.rs`**
-  - [ ] Add `tower_http::cors::CorsLayer`
-  - [ ] Allow requests from browser extension
+- [x] **4. Enable CORS in `main.rs`**
+  - [x] Add `tower_http::cors::CorsLayer`
+  - [x] Allow requests from browser extension
 
 ---
 
@@ -85,7 +86,7 @@
   - [ ] Add `COMMONPLACE_API` configuration constant
   - [ ] Implement `syncToCommonplace()` function:
     - Get all highlights from `chrome.storage.local`
-    - POST to `/commonplace/sync`
+    - POST to `/light/sync`
     - Display results/errors
     - Store last sync timestamp
   - [ ] Add click handler for sync button
@@ -98,22 +99,32 @@
 
 ## File Changes Summary
 
-| File                         | Type   | Changes                                                       |
-| ---------------------------- | ------ | ------------------------------------------------------------- |
-| `src/commonplace/lib.rs`     | Modify | Add `find_resource_by_title`, `annotation_exists_by_group_id` |
-| `src/commonplace/handler.rs` | Modify | Add DTOs + `sync_highlights` handler                          |
-| `src/commonplace/routes.rs`  | Modify | Add `/sync` route                                             |
-| `src/main.rs`                | Modify | Add CORS layer                                                |
-| `light/manifest.json`        | Modify | Add permissions                                               |
-| `light/popup.html`           | Modify | Add sync button + status                                      |
-| `light/popup.css`            | Modify | Add sync styles                                               |
-| `light/popup.js`             | Modify | Add sync logic                                                |
+### Backend (Completed)
+
+| File                     | Type   | Changes                          |
+| ------------------------ | ------ | -------------------------------- |
+| `src/commonplace/lib.rs` | Modify | Add `find_resource_by_title`     |
+| `src/light/mod.rs`       | Create | Light module declaration         |
+| `src/light/handler.rs`   | Create | DTOs + `sync_highlights` handler |
+| `src/light/routes.rs`    | Create | `/sync` POST route               |
+| `src/lib.rs`             | Modify | Register `light` module          |
+| `src/main.rs`            | Modify | Mount light routes + add CORS    |
+| `Cargo.toml`             | Modify | Add `cors` feature to tower-http |
+
+### Frontend (Pending)
+
+| File                  | Type   | Changes                  |
+| --------------------- | ------ | ------------------------ |
+| `light/manifest.json` | Modify | Add permissions          |
+| `light/popup.html`    | Modify | Add sync button + status |
+| `light/popup.css`     | Modify | Add sync styles          |
+| `light/popup.js`      | Modify | Add sync logic           |
 
 ---
 
 ## API Contract
 
-### `POST /commonplace/sync`
+### `POST /light/sync`
 
 **Request:**
 
