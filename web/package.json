@@ -6,9 +6,11 @@
   "author": "",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently \"npm run dev:vite\" \"npm run dev:css\"",
+    "dev:vite": "vite",
+    "dev:css": "npx @tailwindcss/cli -i static/css/style.css -o static/css/output.css --watch --content 'static/**/*.{html,js,jsx}'",
     "build": "vite build",
-    "build:css": "npx @tailwindcss/cli -i static/css/style.css -o static/css/output.css --watch --content 'static/**/*.{html,js,jsx}'"
+    "build:css": "npx @tailwindcss/cli -i static/css/style.css -o static/css/output.css --content 'static/**/*.{html,js,jsx}'"
   },
   "dependencies": {
     "@tailwindcss/cli": "^4.1.12",
@@ -18,6 +20,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",
+    "concurrently": "^9.1.2",
     "vite": "^5.4.2"
   }
 }

@@ -141,7 +141,7 @@ function DomainItem({ domain, urlsInDomain }) {
         className="light-url-item"
         onClick={() => setIsExpanded(!isExpanded)}
       >
-        <span className="barlow-medium">{domain}</span>
+        <span>{domain}</span>
         <span className="light-url-item-date">{formattedDate}</span>
       </div>
       <div className={`light-domain-content ${isExpanded ? 'expanded' : ''}`}>
@@ -226,7 +226,7 @@ function Stats({ highlightsByUrl }) {
   )
 
   return (
-    <div className="light-stats barlow-semibold">
+    <div className="light-stats">
       <div className="light-stat">
         <p className="light-stat-desc">WEBSITES</p>
         <p className="light-stat-val">{totalWebsites}</p>
@@ -239,32 +239,6 @@ function Stats({ highlightsByUrl }) {
   )
 }
 
-function NavBar({ onExport, highlightsByUrl }) {
-  const [copied, setCopied] = useState(false)
-
-  const handleExport = async () => {
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(highlightsByUrl, null, 2))
-      setCopied(true)
-      setTimeout(() => setCopied(false), 800)
-    } catch (err) {
-      console.error('Failed to copy:', err)
-    }
-  }
-
-  return null
-
-  // return (
-  //   <nav className="light-nav barlow-semibold">
-  //     {/* <h1>🐽 LIGHT</h1> */}
-  //     {/* <div className="light-nav-buttons">
-  //       <button onClick={handleExport} className="barlow-regular">
-  //         {copied ? 'Copied!' : 'Export'}
-  //       </button>
-  //     </div> */}
-  //   </nav>
-  // )
-}
 
 // ============================================================================
 // Main Component
@@ -319,7 +293,6 @@ export default function HighlightsPage() {
   if (loading) {
     return (
       <div className="light-container">
-        <NavBar highlightsByUrl={{}} />
         <div className="light-loading">Loading highlights...</div>
       </div>
     )
@@ -328,7 +301,6 @@ export default function HighlightsPage() {
   if (error) {
     return (
       <div className="light-container">
-        <NavBar highlightsByUrl={{}} />
         <div className="light-empty">Error loading highlights: {error}</div>
       </div>
     )
@@ -336,7 +308,6 @@ export default function HighlightsPage() {
 
   return (
     <div className="light-container">
-      <NavBar highlightsByUrl={highlightsByUrl} />
       <Stats highlightsByUrl={highlightsByUrl} />
       <HighlightsList highlightsByUrl={highlightsByUrl} />
     </div>
