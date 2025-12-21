@@ -14,20 +14,14 @@ pub fn routes() -> Router<AppState> {
         .route("/resources/:id", put(handler::update_resource))
         .route("/resources/:id", delete(handler::delete_resource))
         .route("/resources/:id/full", get(handler::get_resource_full))
-        .route(
-            "/resources/:id/annotations",
-            get(handler::list_annotations_by_resource),
-        )
+        .route("/resources/:id/annotations", get(handler::list_annotations_by_resource))
         .route("/resources/:id/notes", get(handler::list_notes_by_resource))
         .route("/resources/:id/words", get(handler::list_words_by_resource))
         .route("/annotations", post(handler::create_annotation))
         .route("/annotations/:id", get(handler::get_annotation))
         .route("/annotations/:id", put(handler::update_annotation))
         .route("/annotations/:id", delete(handler::delete_annotation))
-        .route(
-            "/annotations/:id/comments",
-            get(handler::list_comments_by_annotation),
-        )
+        .route("/annotations/:id/comments", get(handler::list_comments_by_annotation))
         .route("/comments", post(handler::create_comment))
         .route("/comments/:id", get(handler::get_comment))
         .route("/comments/:id", put(handler::update_comment))

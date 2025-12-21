@@ -309,10 +309,7 @@ impl<'a> Commonplace<'a> {
         }
     }
 
-    pub async fn find_resource_by_external_id(
-        &self,
-        external_id: &str,
-    ) -> Result<Option<Resource>> {
+    pub async fn find_resource_by_external_id(&self, external_id: &str) -> Result<Option<Resource>> {
         let query = r#"
             SELECT id, title, type, external_id, content_hash, deleted_at, created_at, updated_at
             FROM resources WHERE external_id = ? AND deleted_at IS NULL
@@ -344,12 +341,7 @@ impl<'a> Commonplace<'a> {
         Ok(resources)
     }
 
-    pub async fn list_resources(
-        &self,
-        limit: i32,
-        offset: i32,
-        resource_type: Option<&str>,
-    ) -> Result<Vec<Resource>> {
+    pub async fn list_resources(&self, limit: i32, offset: i32, resource_type: Option<&str>) -> Result<Vec<Resource>> {
         let mut resources = Vec::new();
 
         if let Some(rtype) = resource_type {
@@ -361,10 +353,7 @@ impl<'a> Commonplace<'a> {
                 LIMIT ? OFFSET ?
             "#;
 
-            let mut rows = self
-                .conn
-                .query(query, libsql::params![rtype, limit, offset])
-                .await?;
+            let mut rows = self.conn.query(query, libsql::params![rtype, limit, offset]).await?;
 
             while let Some(row) = rows.next().await? {
                 resources.push(self.row_to_resource(&row)?);
@@ -378,10 +367,7 @@ impl<'a> Commonplace<'a> {
                 LIMIT ? OFFSET ?
             "#;
 
-            let mut rows = self
-                .conn
-                .query(query, libsql::params![limit, offset])
-                .await?;
+            let mut rows = self.conn.query(query, libsql::params![limit, offset]).await?;
 
             while let Some(row) = rows.next().await? {
                 resources.push(self.row_to_resource(&row)?);
@@ -391,11 +377,7 @@ impl<'a> Commonplace<'a> {
         Ok(resources)
     }
 
-    pub async fn update_resource(
-        &self,
-        id: i32,
-        input: UpdateResource,
-    ) -> Result<Option<Resource>> {
+    pub async fn update_resource(&self, id: i32, input: UpdateResource) -> Result<Option<Resource>> {
         if self.get_resource(id).await?.is_none() {
             return Ok(None);
         }
@@ -423,10 +405,7 @@ impl<'a> Commonplace<'a> {
         updates.push("updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')");
         params.push(id.into());
 
-        let query = format!(
-            "UPDATE resources SET {} WHERE id = ? AND deleted_at IS NULL",
-            updates.join(", ")
-        );
+        let query = format!("UPDATE resources SET {} WHERE id = ? AND deleted_at IS NULL", updates.join(", "));
 
         self.conn.execute(&query, params).await?;
         self.get_resource(id).await
@@ -442,8 +421,8 @@ impl<'a> Commonplace<'a> {
 
     fn row_to_resource(&self, row: &libsql::Row) -> Result<Resource> {
         let type_str: String = row.get(2)?;
-        let resource_type = ResourceType::from_str(&type_str)
-            .ok_or_else(|| anyhow::anyhow!("Invalid resource type: {}", type_str))?;
+        let resource_type =
+            ResourceType::from_str(&type_str).ok_or_else(|| anyhow::anyhow!("Invalid resource type: {}", type_str))?;
 
         Ok(Resource {
             id: row.get(0)?,
@@ -468,11 +447,7 @@ impl<'a> Commonplace<'a> {
     }
 
     pub async fn create_annotation(&self, input: CreateAnnotation) -> Result<Annotation> {
-        let boundary_json = input
-            .boundary
-            .as_ref()
-            .map(|b| serde_json::to_string(b))
-            .transpose()?;
+        let boundary_json = input.boundary.as_ref().map(|b| serde_json::to_string(b)).transpose()?;
 
         let query = r#"
             INSERT INTO annotations (resource_id, text, color, boundary, external_id, content_hash)
@@ -517,10 +492,7 @@ impl<'a> Commonplace<'a> {
         }
     }
 
-    pub async fn find_annotation_by_external_id(
-        &self,
-        external_id: &str,
-    ) -> Result<Option<Annotation>> {
+    pub async fn find_annotation_by_external_id(&self, external_id: &str) -> Result<Option<Annotation>> {
         let query = r#"
             SELECT id, resource_id, text, color, boundary, external_id, content_hash, deleted_at, created_at, updated_at
             FROM annotations WHERE external_id = ? AND deleted_at IS NULL
@@ -547,9 +519,7 @@ impl<'a> Commonplace<'a> {
                 FROM annotations
                 WHERE external_id LIKE ? AND deleted_at IS NULL AND resource_id = ?
             "#;
-            self.conn
-                .query(query, libsql::params![pattern, rid])
-                .await?
+            self.conn.query(query, libsql::params![pattern, rid]).await?
         } else {
             let query = r#"
                 SELECT id, resource_id, text, color, boundary, external_id, content_hash, deleted_at, created_at, updated_at
@@ -585,11 +555,7 @@ impl<'a> Commonplace<'a> {
         Ok(annotations)
     }
 
-    pub async fn update_annotation(
-        &self,
-        id: i32,
-        input: UpdateAnnotation,
-    ) -> Result<Option<Annotation>> {
+    pub async fn update_annotation(&self, id: i32, input: UpdateAnnotation) -> Result<Option<Annotation>> {
         if self.get_annotation(id).await?.is_none() {
             return Ok(None);
         }
@@ -622,10 +588,7 @@ impl<'a> Commonplace<'a> {
         updates.push("updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')");
         params.push(id.into());
 
-        let query = format!(
-            "UPDATE annotations SET {} WHERE id = ? AND deleted_at IS NULL",
-            updates.join(", ")
-        );
+        let query = format!("UPDATE annotations SET {} WHERE id = ? AND deleted_at IS NULL", updates.join(", "));
 
         self.conn.execute(&query, params).await?;
         self.get_annotation(id).await
@@ -750,10 +713,7 @@ impl<'a> Commonplace<'a> {
             ORDER BY created_at ASC
         "#;
 
-        let mut rows = self
-            .conn
-            .query(query, libsql::params![annotation_id])
-            .await?;
+        let mut rows = self.conn.query(query, libsql::params![annotation_id]).await?;
         let mut comments = Vec::new();
 
         while let Some(row) = rows.next().await? {
@@ -779,10 +739,7 @@ impl<'a> Commonplace<'a> {
         updates.push("updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')".to_string());
         params.push(id.into());
 
-        let query = format!(
-            "UPDATE comments SET {} WHERE id = ? AND deleted_at IS NULL",
-            updates.join(", ")
-        );
+        let query = format!("UPDATE comments SET {} WHERE id = ? AND deleted_at IS NULL", updates.join(", "));
 
         self.conn.execute(&query, params).await?;
         self.get_comment(id).await
@@ -828,15 +785,7 @@ impl<'a> Commonplace<'a> {
 
         let mut rows = self
             .conn
-            .query(
-                query,
-                libsql::params![
-                    input.resource_id,
-                    input.content,
-                    input.external_id,
-                    input.content_hash
-                ],
-            )
+            .query(query, libsql::params![input.resource_id, input.content, input.external_id, input.content_hash])
             .await?;
 
         if let Some(row) = rows.next().await? {
@@ -928,10 +877,7 @@ impl<'a> Commonplace<'a> {
         updates.push("updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')".to_string());
         params.push(id.into());
 
-        let query = format!(
-            "UPDATE notes SET {} WHERE id = ? AND deleted_at IS NULL",
-            updates.join(", ")
-        );
+        let query = format!("UPDATE notes SET {} WHERE id = ? AND deleted_at IS NULL", updates.join(", "));
 
         self.conn.execute(&query, params).await?;
         self.get_note(id).await
@@ -977,10 +923,7 @@ impl<'a> Commonplace<'a> {
 
         let mut rows = self
             .conn
-            .query(
-                query,
-                libsql::params![input.resource_id, input.name, input.meaning],
-            )
+            .query(query, libsql::params![input.resource_id, input.name, input.meaning])
             .await?;
 
         if let Some(row) = rows.next().await? {
@@ -1107,10 +1050,7 @@ impl<'a> Commonplace<'a> {
         let mut annotations_with_comments = Vec::new();
         for annotation in annotations {
             let comments = self.list_comments_by_annotation(annotation.id).await?;
-            annotations_with_comments.push(AnnotationWithComments {
-                annotation,
-                comments,
-            });
+            annotations_with_comments.push(AnnotationWithComments { annotation, comments });
         }
 
         Ok(Some(ResourceFull {

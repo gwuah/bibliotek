@@ -7,8 +7,8 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use super::{
-    Commonplace, CreateAnnotation, CreateComment, CreateNote, CreateResource, CreateWord,
-    UpdateAnnotation, UpdateComment, UpdateNote, UpdateResource, UpdateWord,
+    Commonplace, CreateAnnotation, CreateComment, CreateNote, CreateResource, CreateWord, UpdateAnnotation,
+    UpdateComment, UpdateNote, UpdateResource, UpdateWord,
 };
 use crate::handler::AppState;
 
@@ -44,39 +44,18 @@ fn created<T: Serialize>(data: T) -> Response {
 }
 
 fn not_found(msg: &str) -> Response {
-    (
-        StatusCode::NOT_FOUND,
-        Json(ErrorResponse {
-            error: msg.to_string(),
-        }),
-    )
-        .into_response()
+    (StatusCode::NOT_FOUND, Json(ErrorResponse { error: msg.to_string() })).into_response()
 }
 
 fn bad_request(msg: &str) -> Response {
-    (
-        StatusCode::BAD_REQUEST,
-        Json(ErrorResponse {
-            error: msg.to_string(),
-        }),
-    )
-        .into_response()
+    (StatusCode::BAD_REQUEST, Json(ErrorResponse { error: msg.to_string() })).into_response()
 }
 
 fn internal_error(msg: &str) -> Response {
-    (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        Json(ErrorResponse {
-            error: msg.to_string(),
-        }),
-    )
-        .into_response()
+    (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse { error: msg.to_string() })).into_response()
 }
 
-pub async fn create_resource(
-    State(state): State<AppState>,
-    Json(payload): Json<CreateResource>,
-) -> Response {
+pub async fn create_resource(State(state): State<AppState>, Json(payload): Json<CreateResource>) -> Response {
     let lib = Commonplace::new(state.db.connection());
 
     match lib.create_resource(payload).await {
@@ -114,18 +93,12 @@ pub async fn get_resource_full(State(state): State<AppState>, Path(id): Path<i32
     }
 }
 
-pub async fn list_resources(
-    State(state): State<AppState>,
-    Query(params): Query<ResourceListParams>,
-) -> Response {
+pub async fn list_resources(State(state): State<AppState>, Query(params): Query<ResourceListParams>) -> Response {
     let lib = Commonplace::new(state.db.connection());
     let limit = params.limit.unwrap_or(50).min(100);
     let offset = params.offset.unwrap_or(0);
 
-    match lib
-        .list_resources(limit, offset, params.resource_type.as_deref())
-        .await
-    {
+    match lib.list_resources(limit, offset, params.resource_type.as_deref()).await {
         Ok(resources) => success(resources),
         Err(e) => {
             tracing::error!("Failed to list resources: {}", e);
@@ -164,10 +137,7 @@ pub async fn delete_resource(State(state): State<AppState>, Path(id): Path<i32>)
     }
 }
 
-pub async fn create_annotation(
-    State(state): State<AppState>,
-    Json(payload): Json<CreateAnnotation>,
-) -> Response {
+pub async fn create_annotation(State(state): State<AppState>, Json(payload): Json<CreateAnnotation>) -> Response {
     let lib = Commonplace::new(state.db.connection());
 
     match lib.create_annotation(payload).await {
@@ -192,10 +162,7 @@ pub async fn get_annotation(State(state): State<AppState>, Path(id): Path<i32>) 
     }
 }
 
-pub async fn list_annotations_by_resource(
-    State(state): State<AppState>,
-    Path(resource_id): Path<i32>,
-) -> Response {
+pub async fn list_annotations_by_resource(State(state): State<AppState>, Path(resource_id): Path<i32>) -> Response {
     let lib = Commonplace::new(state.db.connection());
 
     match lib.list_annotations_by_resource(resource_id).await {
@@ -237,10 +204,7 @@ pub async fn delete_annotation(State(state): State<AppState>, Path(id): Path<i32
     }
 }
 
-pub async fn create_comment(
-    State(state): State<AppState>,
-    Json(payload): Json<CreateComment>,
-) -> Response {
+pub async fn create_comment(State(state): State<AppState>, Json(payload): Json<CreateComment>) -> Response {
     let lib = Commonplace::new(state.db.connection());
 
     match lib.create_comment(payload).await {
@@ -265,10 +229,7 @@ pub async fn get_comment(State(state): State<AppState>, Path(id): Path<i32>) -> 
     }
 }
 
-pub async fn list_comments_by_annotation(
-    State(state): State<AppState>,
-    Path(annotation_id): Path<i32>,
-) -> Response {
+pub async fn list_comments_by_annotation(State(state): State<AppState>, Path(annotation_id): Path<i32>) -> Response {
     let lib = Commonplace::new(state.db.connection());
 
     match lib.list_comments_by_annotation(annotation_id).await {
@@ -310,10 +271,7 @@ pub async fn delete_comment(State(state): State<AppState>, Path(id): Path<i32>) 
     }
 }
 
-pub async fn create_note(
-    State(state): State<AppState>,
-    Json(payload): Json<CreateNote>,
-) -> Response {
+pub async fn create_note(State(state): State<AppState>, Json(payload): Json<CreateNote>) -> Response {
     let lib = Commonplace::new(state.db.connection());
 
     match lib.create_note(payload).await {
@@ -338,10 +296,7 @@ pub async fn get_note(State(state): State<AppState>, Path(id): Path<i32>) -> Res
     }
 }
 
-pub async fn list_notes_by_resource(
-    State(state): State<AppState>,
-    Path(resource_id): Path<i32>,
-) -> Response {
+pub async fn list_notes_by_resource(State(state): State<AppState>, Path(resource_id): Path<i32>) -> Response {
     let lib = Commonplace::new(state.db.connection());
 
     match lib.list_notes_by_resource(resource_id).await {
@@ -383,10 +338,7 @@ pub async fn delete_note(State(state): State<AppState>, Path(id): Path<i32>) -> 
     }
 }
 
-pub async fn create_word(
-    State(state): State<AppState>,
-    Json(payload): Json<CreateWord>,
-) -> Response {
+pub async fn create_word(State(state): State<AppState>, Json(payload): Json<CreateWord>) -> Response {
     let lib = Commonplace::new(state.db.connection());
 
     match lib.create_word(payload).await {
@@ -411,10 +363,7 @@ pub async fn get_word(State(state): State<AppState>, Path(id): Path<i32>) -> Res
     }
 }
 
-pub async fn list_words_by_resource(
-    State(state): State<AppState>,
-    Path(resource_id): Path<i32>,
-) -> Response {
+pub async fn list_words_by_resource(State(state): State<AppState>, Path(resource_id): Path<i32>) -> Response {
     let lib = Commonplace::new(state.db.connection());
 
     match lib.list_words_by_resource(resource_id).await {
@@ -426,10 +375,7 @@ pub async fn list_words_by_resource(
     }
 }
 
-pub async fn search_words(
-    State(state): State<AppState>,
-    Query(params): Query<SearchParams>,
-) -> Response {
+pub async fn search_words(State(state): State<AppState>, Query(params): Query<SearchParams>) -> Response {
     let lib = Commonplace::new(state.db.connection());
 
     let query = match params.q {

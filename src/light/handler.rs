@@ -8,13 +8,12 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
 use crate::commonplace::{
-    Commonplace, CreateAnnotation, CreateResource, ResourceType, UpdateAnnotation,
-    compute_annotation_hash, compute_resource_hash,
+    Commonplace, CreateAnnotation, CreateResource, ResourceType, UpdateAnnotation, compute_annotation_hash,
+    compute_resource_hash,
 };
 use crate::handler::AppState;
 use crate::sync::{
-    SyncResult, Syncable, handle_create_result_unit, handle_update_result_unit,
-    is_orphan, is_unchanged, log_find_error,
+    SyncResult, Syncable, handle_create_result_unit, handle_update_result_unit, is_orphan, is_unchanged, log_find_error,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -53,10 +52,7 @@ fn success<T: Serialize>(data: T) -> Response {
     (StatusCode::OK, Json(ApiResponse { data })).into_response()
 }
 
-pub async fn sync_highlights(
-    State(state): State<AppState>,
-    Json(payload): Json<SyncRequest>,
-) -> Response {
+pub async fn sync_highlights(State(state): State<AppState>, Json(payload): Json<SyncRequest>) -> Response {
     let lib = Commonplace::new(state.db.connection());
     let mut stats = SyncResponse::default();
     let mut seen_external_ids = HashSet::new();
@@ -68,15 +64,7 @@ pub async fn sync_highlights(
         };
 
         for highlight in highlights {
-            sync_highlight(
-                &lib,
-                &payload.source,
-                resource_id,
-                highlight,
-                &mut stats,
-                &mut seen_external_ids,
-            )
-            .await;
+            sync_highlight(&lib, &payload.source, resource_id, highlight, &mut stats, &mut seen_external_ids).await;
         }
     }
 
@@ -85,11 +73,7 @@ pub async fn sync_highlights(
     success(stats)
 }
 
-async fn find_or_create_resource(
-    lib: &Commonplace<'_>,
-    url: &str,
-    stats: &mut SyncResponse,
-) -> Option<i32> {
+async fn find_or_create_resource(lib: &Commonplace<'_>, url: &str, stats: &mut SyncResponse) -> Option<i32> {
     match lib.find_resource_by_title(url).await {
         Ok(Some(resource)) => return Some(resource.id),
         Ok(None) => {}
@@ -228,10 +212,7 @@ async fn soft_delete_orphan_annotations(
         Some(scope_url) => match lib.find_resource_by_title(scope_url).await {
             Ok(Some(resource)) => Some(resource.id),
             Ok(None) => {
-                tracing::warn!(
-                    "Scope resource {} not found, skipping orphan detection",
-                    scope_url
-                );
+                tracing::warn!("Scope resource {} not found, skipping orphan detection", scope_url);
                 return;
             }
             Err(e) => {

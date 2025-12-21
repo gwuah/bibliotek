@@ -10,14 +10,14 @@ use std::collections::HashSet;
 use std::path::Path;
 
 use crate::commonplace::{
-    Commonplace, CreateAnnotation, CreateComment, CreateNote, CreateResource, ResourceType,
-    UpdateAnnotation, UpdateComment, UpdateNote, UpdateResource, compute_annotation_hash,
-    compute_comment_hash, compute_note_hash, compute_resource_hash,
+    Commonplace, CreateAnnotation, CreateComment, CreateNote, CreateResource, ResourceType, UpdateAnnotation,
+    UpdateComment, UpdateNote, UpdateResource, compute_annotation_hash, compute_comment_hash, compute_note_hash,
+    compute_resource_hash,
 };
 use crate::handler::AppState;
 use crate::sync::{
-    SyncResult, SyncStats, delete_orphans, handle_create_result, handle_create_result_unit,
-    handle_update_result, handle_update_result_unit, is_unchanged, log_find_error,
+    SyncResult, SyncStats, delete_orphans, handle_create_result, handle_create_result_unit, handle_update_result,
+    handle_update_result_unit, is_unchanged, log_find_error,
 };
 
 #[derive(Debug, Deserialize)]
@@ -123,23 +123,11 @@ fn success<T: Serialize>(data: T) -> Response {
 }
 
 fn bad_request(msg: &str) -> Response {
-    (
-        StatusCode::BAD_REQUEST,
-        Json(ErrorResponse {
-            error: msg.to_string(),
-        }),
-    )
-        .into_response()
+    (StatusCode::BAD_REQUEST, Json(ErrorResponse { error: msg.to_string() })).into_response()
 }
 
 fn internal_error(msg: &str) -> Response {
-    (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        Json(ErrorResponse {
-            error: msg.to_string(),
-        }),
-    )
-        .into_response()
+    (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse { error: msg.to_string() })).into_response()
 }
 
 pub async fn get_config(State(state): State<AppState>) -> Response {
@@ -168,10 +156,7 @@ pub async fn get_config(State(state): State<AppState>) -> Response {
     }
 }
 
-pub async fn set_config(
-    State(state): State<AppState>,
-    Json(payload): Json<SetConfigRequest>,
-) -> Response {
+pub async fn set_config(State(state): State<AppState>, Json(payload): Json<SetConfigRequest>) -> Response {
     if !Path::new(&payload.db_path).exists() {
         return bad_request("Database file does not exist at the specified path");
     }
@@ -185,10 +170,7 @@ pub async fn set_config(
     "#;
 
     let conn = state.db.connection();
-    match conn
-        .execute(query, libsql::params![payload.db_path.clone()])
-        .await
-    {
+    match conn.execute(query, libsql::params![payload.db_path.clone()]).await {
         Ok(_) => success(ConfigResponse {
             db_path: Some(payload.db_path),
             last_sync_at: None,
@@ -259,9 +241,7 @@ async fn get_research_db_path(conn: &libsql::Connection) -> Result<String, Respo
         .map_err(|_| bad_request(not_configured))?;
 
     if !Path::new(&path).exists() {
-        return Err(bad_request(
-            "Research database file no longer exists at the configured path",
-        ));
+        return Err(bad_request("Research database file no longer exists at the configured path"));
     }
 
     Ok(path)
@@ -305,11 +285,10 @@ async fn sync_all_entities(
     let mut note_stats = SyncStats::default();
 
     for item in items {
-        let resource_id =
-            match sync_resource(lib, &item, &mut resource_stats, &mut seen.resources).await {
-                Some(id) => id,
-                None => continue,
-            };
+        let resource_id = match sync_resource(lib, &item, &mut resource_stats, &mut seen.resources).await {
+            Some(id) => id,
+            None => continue,
+        };
 
         sync_item_annotations(
             lib,
@@ -321,26 +300,11 @@ async fn sync_all_entities(
             &mut seen,
         )
         .await;
-        sync_item_notes(
-            lib,
-            research_conn,
-            &item,
-            resource_id,
-            &mut note_stats,
-            &mut seen.notes,
-        )
-        .await;
+        sync_item_notes(lib, research_conn, &item, resource_id, &mut note_stats, &mut seen.notes).await;
     }
 
-    soft_delete_orphans(
-        lib,
-        &seen,
-        &mut resource_stats,
-        &mut annotation_stats,
-        &mut comment_stats,
-        &mut note_stats,
-    )
-    .await;
+    soft_delete_orphans(lib, &seen, &mut resource_stats, &mut annotation_stats, &mut comment_stats, &mut note_stats)
+        .await;
 
     response.apply_resources(&resource_stats);
     response.apply_annotations(&annotation_stats);
@@ -365,12 +329,7 @@ async fn sync_resource(
         .record(stats)
 }
 
-async fn upsert_resource(
-    lib: &Commonplace<'_>,
-    external_id: &str,
-    title: &str,
-    content_hash: &str,
-) -> SyncResult<i32> {
+async fn upsert_resource(lib: &Commonplace<'_>, external_id: &str, title: &str, content_hash: &str) -> SyncResult<i32> {
     let existing = match lib.find_resource_by_external_id(external_id).await {
         Ok(r) => r,
         Err(e) => {
@@ -390,12 +349,7 @@ async fn upsert_resource(
     update_resource(lib, external_id, resource.id, title, content_hash).await
 }
 
-async fn create_resource(
-    lib: &Commonplace<'_>,
-    external_id: &str,
-    title: &str,
-    content_hash: &str,
-) -> SyncResult<i32> {
+async fn create_resource(lib: &Commonplace<'_>, external_id: &str, title: &str, content_hash: &str) -> SyncResult<i32> {
     let result = lib
         .create_resource(CreateResource {
             title: title.to_string(),
@@ -447,28 +401,14 @@ async fn sync_item_annotations(
     };
 
     for annotation in annotations {
-        let annotation_id = match sync_annotation(
-            lib,
-            &annotation,
-            resource_id,
-            annotation_stats,
-            &mut seen.annotations,
-        )
-        .await
-        {
-            Some(id) => id,
-            None => continue,
-        };
+        let annotation_id =
+            match sync_annotation(lib, &annotation, resource_id, annotation_stats, &mut seen.annotations).await {
+                Some(id) => id,
+                None => continue,
+            };
 
-        sync_annotation_comments(
-            lib,
-            research_conn,
-            &annotation,
-            annotation_id,
-            comment_stats,
-            &mut seen.comments,
-        )
-        .await;
+        sync_annotation_comments(lib, research_conn, &annotation, annotation_id, comment_stats, &mut seen.comments)
+            .await;
     }
 }
 
@@ -489,16 +429,9 @@ async fn sync_annotation(
         "source": "research",
     });
 
-    upsert_annotation(
-        lib,
-        &external_id,
-        annotation,
-        resource_id,
-        &content_hash,
-        boundary,
-    )
-    .await
-    .record(stats)
+    upsert_annotation(lib, &external_id, annotation, resource_id, &content_hash, boundary)
+        .await
+        .record(stats)
 }
 
 async fn upsert_annotation(
@@ -518,15 +451,7 @@ async fn upsert_annotation(
     };
 
     let Some(ann) = existing else {
-        return create_annotation(
-            lib,
-            external_id,
-            annotation,
-            resource_id,
-            content_hash,
-            boundary,
-        )
-        .await;
+        return create_annotation(lib, external_id, annotation, resource_id, content_hash, boundary).await;
     };
 
     if is_unchanged(&ann, content_hash) {
@@ -613,15 +538,9 @@ async fn sync_comment(
     let content_hash = compute_comment_hash(&comment.content);
     seen.insert(external_id.clone());
 
-    upsert_comment(
-        lib,
-        &external_id,
-        &comment.content,
-        annotation_id,
-        &content_hash,
-    )
-    .await
-    .record_unit(stats);
+    upsert_comment(lib, &external_id, &comment.content, annotation_id, &content_hash)
+        .await
+        .record_unit(stats);
 }
 
 async fn upsert_comment(
@@ -865,10 +784,7 @@ async fn fetch_research_items(conn: &Connection) -> anyhow::Result<Vec<ResearchI
     Ok(items)
 }
 
-async fn fetch_research_annotations(
-    conn: &Connection,
-    item_id: &str,
-) -> anyhow::Result<Vec<ResearchAnnotation>> {
+async fn fetch_research_annotations(conn: &Connection, item_id: &str) -> anyhow::Result<Vec<ResearchAnnotation>> {
     let query = r#"
         SELECT 
             id,
@@ -896,10 +812,7 @@ async fn fetch_research_annotations(
     Ok(annotations)
 }
 
-async fn fetch_research_comments(
-    conn: &Connection,
-    annotation_id: &str,
-) -> anyhow::Result<Vec<ResearchComment>> {
+async fn fetch_research_comments(conn: &Connection, annotation_id: &str) -> anyhow::Result<Vec<ResearchComment>> {
     let query = r#"
         SELECT id, content
         FROM comments 
@@ -919,10 +832,7 @@ async fn fetch_research_comments(
     Ok(comments)
 }
 
-async fn fetch_research_notes(
-    conn: &Connection,
-    item_id: &str,
-) -> anyhow::Result<Vec<ResearchNote>> {
+async fn fetch_research_notes(conn: &Connection, item_id: &str) -> anyhow::Result<Vec<ResearchNote>> {
     let query = r#"
         SELECT id, content
         FROM notes 
