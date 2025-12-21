@@ -142,9 +142,6 @@ function AnnotationItem({ annotation }) {
     <div className="research-annotation">
       <div className="research-annotation-text">
         <p>{annotation.text}</p>
-        {annotation.boundary?.pageNumber && (
-          <span className="research-page-number">Page {annotation.boundary.pageNumber}</span>
-        )}
       </div>
       
       {annotation.comments && annotation.comments.length > 0 && (
@@ -171,9 +168,33 @@ function AnnotationItem({ annotation }) {
   )
 }
 
+function groupAnnotationsByPage(annotations) {
+  const groups = {}
+  
+  for (const ann of annotations) {
+    const page = ann.boundary?.pageNumber ?? 'No Page'
+    if (!groups[page]) {
+      groups[page] = []
+    }
+    groups[page].push(ann)
+  }
+  
+  const sortedPages = Object.keys(groups).sort((a, b) => {
+    if (a === 'No Page') return 1
+    if (b === 'No Page') return -1
+    return Number(a) - Number(b)
+  })
+  
+  return sortedPages.map(page => ({
+    page,
+    annotations: groups[page]
+  }))
+}
+
 function ResourceDetail({ resourceId, onBack }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState(null)
 
   useEffect(() => {
@@ -195,6 +216,20 @@ function ResourceDetail({ resourceId, onBack }) {
       setError(err.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleSync = async () => {
+    setSyncing(true)
+    try {
+      const res = await fetch('/research/sync', { method: 'POST' })
+      if (res.ok) {
+        await loadResourceFull()
+      }
+    } catch (err) {
+      console.error('Sync failed:', err)
+    } finally {
+      setSyncing(false)
     }
   }
 
@@ -222,7 +257,16 @@ function ResourceDetail({ resourceId, onBack }) {
         <button onClick={onBack} className="research-back-btn">
           ← Back to list
         </button>
-        <h2 className="research-detail-title">{data?.title}</h2>
+        <div className="research-detail-header-right">
+          <h2 className="research-detail-title">{data?.title}</h2>
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            className="research-btn research-btn-secondary"
+          >
+            {syncing ? 'Syncing...' : 'Sync'}
+          </button>
+        </div>
       </div>
       
       {(!hasNotes && !hasAnnotations) ? (
@@ -249,8 +293,17 @@ function ResourceDetail({ resourceId, onBack }) {
               <div className="research-section">
                 <h3>Annotations ({data.annotations.length})</h3>
                 <div className="research-annotations">
-                  {data.annotations.map((ann) => (
-                    <AnnotationItem key={ann.id} annotation={ann} />
+                  {groupAnnotationsByPage(data.annotations).map((group) => (
+                    <div key={group.page} className="research-page-group">
+                      <div className="research-page-header">
+                        <span className="research-page-number">
+                          {group.page === 'No Page' ? 'No Page' : `Page ${group.page}`}
+                        </span>
+                      </div>
+                      {group.annotations.map((ann) => (
+                        <AnnotationItem key={ann.id} annotation={ann} />
+                      ))}
+                    </div>
                   ))}
                 </div>
               </div>

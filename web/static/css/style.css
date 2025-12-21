@@ -892,7 +892,7 @@ img {
 
 .research-detail-columns {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 45% 55%;
   gap: 32px;
 }
 
@@ -910,6 +910,12 @@ img {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 24px;
+}
+
+.research-detail-header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
 .research-back-btn {
@@ -952,8 +958,8 @@ img {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  border: 1px solid #ccc;
-  padding: 16px;
+  /* border: 1px solid #ccc; */
+  /* padding: 16px; */
 }
 
 .research-note {
@@ -977,7 +983,7 @@ img {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  border: 1px solid #ccc;
+  /* border: 1px solid #ccc; */
   padding: 16px;
 }
 
@@ -995,9 +1001,23 @@ img {
   margin: 0;
 }
 
+.research-page-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.research-page-group:last-child {
+  margin-bottom: 0;
+}
+
+.research-page-header {
+  /* margin-bottom: 12px; */
+}
+
 .research-page-number {
   display: inline-block;
-  margin-top: 6px;
   font-size: 12px;
   color: #666;
   background: #f5f5f5;
@@ -1022,8 +1042,8 @@ img {
 
 .research-comments {
   margin-top: 8px;
-  padding-left: 12px;
-  border-left: 1px solid #ddd;
+  /* padding-left: 12px; */
+  /* border-left: 1px solid #ddd; */
 }
 
 .research-comment {
