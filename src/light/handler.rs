@@ -8,10 +8,11 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
 use crate::commonplace::{
-    Commonplace, CreateAnnotation, CreateResource, ResourceType,
-    compute_annotation_hash, UpdateAnnotation,
+    Commonplace, CreateAnnotation, CreateResource, ResourceType, UpdateAnnotation,
+    compute_annotation_hash, compute_resource_hash,
 };
 use crate::handler::AppState;
+
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct LightHighlight {
@@ -31,7 +32,7 @@ pub struct SyncRequest {
     pub highlights: HashMap<String, Vec<LightHighlight>>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Default)]
 pub struct SyncResponse {
     pub resources_created: i32,
     pub annotations_created: i32,
@@ -45,190 +46,229 @@ struct ApiResponse<T> {
     data: T,
 }
 
+
+enum SyncResult {
+    Created,
+    Updated,
+    Unchanged,
+    Error,
+}
+
+
 fn success<T: Serialize>(data: T) -> Response {
     (StatusCode::OK, Json(ApiResponse { data })).into_response()
 }
+
 
 pub async fn sync_highlights(
     State(state): State<AppState>,
     Json(payload): Json<SyncRequest>,
 ) -> Response {
     let lib = Commonplace::new(state.db.connection());
-
-    let mut resources_created = 0;
-    let mut annotations_created = 0;
-    let mut annotations_updated = 0;
-    let mut annotations_deleted = 0;
-    let mut annotations_unchanged = 0;
-
+    let mut stats = SyncResponse::default();
     let mut seen_external_ids = HashSet::new();
 
-    // Phase 1: Upsert all highlights
-    for (url, highlights) in payload.highlights {
-        let resource_id = match find_or_create_resource(&lib, &url).await {
-            Ok((id, created)) => {
-                if created {
-                    resources_created += 1;
-                }
-                id
-            }
-            Err(e) => {
-                tracing::error!("Failed to find/create resource for {}: {}", url, e);
-                continue;
-            }
+    for (url, highlights) in &payload.highlights {
+        let resource_id = match find_or_create_resource(&lib, url, &mut stats).await {
+            Some(id) => id,
+            None => continue,
         };
 
         for highlight in highlights {
-            let external_id = format!("{}:{}", payload.source, highlight.group_id);
-            let content_hash = compute_annotation_hash(&highlight.repr, Some("yellow"));
-            seen_external_ids.insert(external_id.clone());
-
-            match lib.find_annotation_by_external_id(&external_id).await {
-                Ok(Some(existing)) => {
-                    if existing.content_hash.as_deref() != Some(&content_hash) {
-                        // Content changed, update it
-                        let boundary = serde_json::json!({
-                            "groupID": highlight.group_id,
-                            "date": highlight.date,
-                            "chunks": highlight.chunks,
-                            "url": highlight.url,
-                        });
-
-                        match lib
-                            .update_annotation(
-                                existing.id,
-                                UpdateAnnotation {
-                                    text: Some(highlight.repr.clone()),
-                                    color: Some("yellow".to_string()),
-                                    boundary: Some(boundary),
-                                    content_hash: Some(content_hash),
-                                },
-                            )
-                            .await
-                        {
-                            Ok(Some(_)) => {
-                                annotations_updated += 1;
-                            }
-                            Ok(None) => {
-                                tracing::warn!("Annotation {} not found for update", existing.id);
-                            }
-                            Err(e) => {
-                                tracing::error!("Failed to update annotation {}: {}", external_id, e);
-                            }
-                        }
-                    } else {
-                        annotations_unchanged += 1;
-                    }
-                }
-                Ok(None) => {
-                    // New annotation, create it
-                    let boundary = serde_json::json!({
-                        "groupID": highlight.group_id,
-                        "date": highlight.date,
-                        "chunks": highlight.chunks,
-                        "url": highlight.url,
-                    });
-
-                    match lib
-                        .create_annotation(CreateAnnotation {
-                            resource_id,
-                            text: highlight.repr.clone(),
-                            color: Some("yellow".to_string()),
-                            boundary: Some(boundary),
-                            external_id: Some(external_id),
-                            content_hash: Some(content_hash),
-                        })
-                        .await
-                    {
-                        Ok(_) => {
-                            annotations_created += 1;
-                        }
-                        Err(e) => {
-                            tracing::error!("Failed to create annotation: {}", e);
-                        }
-                    }
-                }
-                Err(e) => {
-                    tracing::error!("Failed to check annotation {}: {}", external_id, e);
-                }
-            }
+            sync_highlight(
+                &lib,
+                &payload.source,
+                resource_id,
+                highlight,
+                &mut stats,
+                &mut seen_external_ids,
+            )
+            .await;
         }
     }
 
-    // Phase 2: Soft delete orphans
-    let orphan_query_resource_id = if let Some(scope_url) = &payload.scope {
-        // Partial sync: only check annotations for the scoped resource
-        match lib.find_resource_by_title(scope_url).await {
-            Ok(Some(resource)) => Some(resource.id),
-            Ok(None) => {
-                tracing::warn!("Scope resource {} not found, skipping orphan detection", scope_url);
-                None
-            }
-            Err(e) => {
-                tracing::error!("Failed to find scope resource {}: {}", scope_url, e);
-                None
-            }
-        }
-    } else {
-        None
-    };
+    soft_delete_orphan_annotations(&lib, &payload, &seen_external_ids, &mut stats).await;
 
-    match lib
-        .find_annotations_by_source_prefix(&payload.source, orphan_query_resource_id)
-        .await
-    {
-        Ok(orphans) => {
-            for orphan in orphans {
-                if !seen_external_ids.contains(
-                    orphan.external_id.as_ref().unwrap_or(&String::new()),
-                ) {
-                    match lib.soft_delete_annotation(orphan.id).await {
-                        Ok(true) => {
-                            annotations_deleted += 1;
-                        }
-                        Ok(false) => {
-                            tracing::warn!("Failed to soft delete annotation {}", orphan.id);
-                        }
-                        Err(e) => {
-                            tracing::error!("Error soft deleting annotation {}: {}", orphan.id, e);
-                        }
-                    }
-                }
-            }
-        }
-        Err(e) => {
-            tracing::error!("Failed to find orphan annotations: {}", e);
-        }
-    }
-
-    success(SyncResponse {
-        resources_created,
-        annotations_created,
-        annotations_updated,
-        annotations_deleted,
-        annotations_unchanged,
-    })
+    success(stats)
 }
+
 
 async fn find_or_create_resource(
     lib: &Commonplace<'_>,
     url: &str,
-) -> anyhow::Result<(i32, bool)> {
-    if let Some(resource) = lib.find_resource_by_title(url).await? {
-        return Ok((resource.id, false));
+    stats: &mut SyncResponse,
+) -> Option<i32> {
+    match lib.find_resource_by_title(url).await {
+        Ok(Some(resource)) => return Some(resource.id),
+        Ok(None) => {}
+        Err(e) => {
+            tracing::error!("Failed to find resource for {}: {}", url, e);
+            return None;
+        }
     }
 
-    use crate::commonplace::compute_resource_hash;
     let content_hash = compute_resource_hash(url);
-
-    let resource = lib
+    match lib
         .create_resource(CreateResource {
             title: url.to_string(),
             resource_type: ResourceType::Website,
             external_id: None,
             content_hash: Some(content_hash),
         })
-        .await?;
+        .await
+    {
+        Ok(resource) => {
+            stats.resources_created += 1;
+            Some(resource.id)
+        }
+        Err(e) => {
+            tracing::error!("Failed to create resource for {}: {}", url, e);
+            None
+        }
+    }
+}
 
-    Ok((resource.id, true))
+
+async fn sync_highlight(
+    lib: &Commonplace<'_>,
+    source: &str,
+    resource_id: i32,
+    highlight: &LightHighlight,
+    stats: &mut SyncResponse,
+    seen: &mut HashSet<String>,
+) {
+    let external_id = format!("{}:{}", source, highlight.group_id);
+    let content_hash = compute_annotation_hash(&highlight.repr, Some("yellow"));
+    seen.insert(external_id.clone());
+
+    match upsert_highlight(lib, &external_id, resource_id, highlight, &content_hash).await {
+        SyncResult::Created => stats.annotations_created += 1,
+        SyncResult::Updated => stats.annotations_updated += 1,
+        SyncResult::Unchanged => stats.annotations_unchanged += 1,
+        SyncResult::Error => {}
+    }
+}
+
+async fn upsert_highlight(
+    lib: &Commonplace<'_>,
+    external_id: &str,
+    resource_id: i32,
+    highlight: &LightHighlight,
+    content_hash: &str,
+) -> SyncResult {
+    let existing = match lib.find_annotation_by_external_id(external_id).await {
+        Ok(a) => a,
+        Err(e) => {
+            tracing::error!("Failed to check annotation {}: {}", external_id, e);
+            return SyncResult::Error;
+        }
+    };
+
+    let boundary = serde_json::json!({
+        "groupID": highlight.group_id,
+        "date": highlight.date,
+        "chunks": highlight.chunks,
+        "url": highlight.url,
+    });
+
+    match existing {
+        Some(ann) if ann.content_hash.as_deref() == Some(content_hash) => SyncResult::Unchanged,
+        Some(ann) => {
+            // Content changed, update
+            match lib
+                .update_annotation(
+                    ann.id,
+                    UpdateAnnotation {
+                        text: Some(highlight.repr.clone()),
+                        color: Some("yellow".to_string()),
+                        boundary: Some(boundary),
+                        content_hash: Some(content_hash.to_string()),
+                    },
+                )
+                .await
+            {
+                Ok(Some(_)) => SyncResult::Updated,
+                Ok(None) => {
+                    tracing::warn!("Annotation {} not found for update", ann.id);
+                    SyncResult::Error
+                }
+                Err(e) => {
+                    tracing::error!("Failed to update annotation {}: {}", external_id, e);
+                    SyncResult::Error
+                }
+            }
+        }
+        None => {
+            // Create new annotation
+            match lib
+                .create_annotation(CreateAnnotation {
+                    resource_id,
+                    text: highlight.repr.clone(),
+                    color: Some("yellow".to_string()),
+                    boundary: Some(boundary),
+                    external_id: Some(external_id.to_string()),
+                    content_hash: Some(content_hash.to_string()),
+                })
+                .await
+            {
+                Ok(_) => SyncResult::Created,
+                Err(e) => {
+                    tracing::error!("Failed to create annotation {}: {}", external_id, e);
+                    SyncResult::Error
+                }
+            }
+        }
+    }
+}
+
+
+async fn soft_delete_orphan_annotations(
+    lib: &Commonplace<'_>,
+    payload: &SyncRequest,
+    seen: &HashSet<String>,
+    stats: &mut SyncResponse,
+) {
+    let scope_resource_id = match &payload.scope {
+        Some(scope_url) => match lib.find_resource_by_title(scope_url).await {
+            Ok(Some(resource)) => Some(resource.id),
+            Ok(None) => {
+                tracing::warn!(
+                    "Scope resource {} not found, skipping orphan detection",
+                    scope_url
+                );
+                return;
+            }
+            Err(e) => {
+                tracing::error!("Failed to find scope resource {}: {}", scope_url, e);
+                return;
+            }
+        },
+        None => None,
+    };
+
+    let orphans = match lib
+        .find_annotations_by_source_prefix(&payload.source, scope_resource_id)
+        .await
+    {
+        Ok(o) => o,
+        Err(e) => {
+            tracing::error!("Failed to find orphan annotations: {}", e);
+            return;
+        }
+    };
+
+    for orphan in orphans {
+        if is_orphan(&orphan.external_id, seen) {
+            if lib.soft_delete_annotation(orphan.id).await.unwrap_or(false) {
+                stats.annotations_deleted += 1;
+            }
+        }
+    }
+}
+
+fn is_orphan(external_id: &Option<String>, seen: &HashSet<String>) -> bool {
+    match external_id {
+        Some(id) => !seen.contains(id),
+        None => false,
+    }
 }
