@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use sha2::{Digest, Sha256};
 
+use crate::sync::Syncable;
+
 // Content hash computation functions
 pub fn compute_resource_hash(title: &str) -> String {
     let mut hasher = Sha256::new();
@@ -69,6 +71,18 @@ pub struct Resource {
     pub updated_at: String,
 }
 
+impl Syncable for Resource {
+    fn external_id(&self) -> Option<&str> {
+        self.external_id.as_deref()
+    }
+    fn content_hash(&self) -> Option<&str> {
+        self.content_hash.as_deref()
+    }
+    fn id(&self) -> i32 {
+        self.id
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Annotation {
     pub id: i32,
@@ -83,6 +97,18 @@ pub struct Annotation {
     pub updated_at: String,
 }
 
+impl Syncable for Annotation {
+    fn external_id(&self) -> Option<&str> {
+        self.external_id.as_deref()
+    }
+    fn content_hash(&self) -> Option<&str> {
+        self.content_hash.as_deref()
+    }
+    fn id(&self) -> i32 {
+        self.id
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Comment {
     pub id: i32,
@@ -95,6 +121,18 @@ pub struct Comment {
     pub updated_at: String,
 }
 
+impl Syncable for Comment {
+    fn external_id(&self) -> Option<&str> {
+        self.external_id.as_deref()
+    }
+    fn content_hash(&self) -> Option<&str> {
+        self.content_hash.as_deref()
+    }
+    fn id(&self) -> i32 {
+        self.id
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Note {
     pub id: i32,
@@ -105,6 +143,18 @@ pub struct Note {
     pub deleted_at: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+}
+
+impl Syncable for Note {
+    fn external_id(&self) -> Option<&str> {
+        self.external_id.as_deref()
+    }
+    fn content_hash(&self) -> Option<&str> {
+        self.content_hash.as_deref()
+    }
+    fn id(&self) -> i32 {
+        self.id
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -12,7 +12,10 @@ use crate::commonplace::{
     compute_annotation_hash, compute_resource_hash,
 };
 use crate::handler::AppState;
-
+use crate::sync::{
+    SyncResult, Syncable, handle_create_result_unit, handle_update_result_unit,
+    is_orphan, is_unchanged, log_find_error,
+};
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct LightHighlight {
@@ -46,19 +49,9 @@ struct ApiResponse<T> {
     data: T,
 }
 
-
-enum SyncResult {
-    Created,
-    Updated,
-    Unchanged,
-    Error,
-}
-
-
 fn success<T: Serialize>(data: T) -> Response {
     (StatusCode::OK, Json(ApiResponse { data })).into_response()
 }
-
 
 pub async fn sync_highlights(
     State(state): State<AppState>,
@@ -91,7 +84,6 @@ pub async fn sync_highlights(
 
     success(stats)
 }
-
 
 async fn find_or_create_resource(
     lib: &Commonplace<'_>,
@@ -128,7 +120,6 @@ async fn find_or_create_resource(
     }
 }
 
-
 async fn sync_highlight(
     lib: &Commonplace<'_>,
     source: &str,
@@ -142,9 +133,9 @@ async fn sync_highlight(
     seen.insert(external_id.clone());
 
     match upsert_highlight(lib, &external_id, resource_id, highlight, &content_hash).await {
-        SyncResult::Created => stats.annotations_created += 1,
-        SyncResult::Updated => stats.annotations_updated += 1,
-        SyncResult::Unchanged => stats.annotations_unchanged += 1,
+        SyncResult::Created(()) => stats.annotations_created += 1,
+        SyncResult::Updated(()) => stats.annotations_updated += 1,
+        SyncResult::Unchanged(()) => stats.annotations_unchanged += 1,
         SyncResult::Error => {}
     }
 }
@@ -155,11 +146,11 @@ async fn upsert_highlight(
     resource_id: i32,
     highlight: &LightHighlight,
     content_hash: &str,
-) -> SyncResult {
+) -> SyncResult<()> {
     let existing = match lib.find_annotation_by_external_id(external_id).await {
         Ok(a) => a,
         Err(e) => {
-            tracing::error!("Failed to check annotation {}: {}", external_id, e);
+            log_find_error("annotation", external_id, e);
             return SyncResult::Error;
         }
     };
@@ -171,56 +162,61 @@ async fn upsert_highlight(
         "url": highlight.url,
     });
 
-    match existing {
-        Some(ann) if ann.content_hash.as_deref() == Some(content_hash) => SyncResult::Unchanged,
-        Some(ann) => {
-            // Content changed, update
-            match lib
-                .update_annotation(
-                    ann.id,
-                    UpdateAnnotation {
-                        text: Some(highlight.repr.clone()),
-                        color: Some("yellow".to_string()),
-                        boundary: Some(boundary),
-                        content_hash: Some(content_hash.to_string()),
-                    },
-                )
-                .await
-            {
-                Ok(Some(_)) => SyncResult::Updated,
-                Ok(None) => {
-                    tracing::warn!("Annotation {} not found for update", ann.id);
-                    SyncResult::Error
-                }
-                Err(e) => {
-                    tracing::error!("Failed to update annotation {}: {}", external_id, e);
-                    SyncResult::Error
-                }
-            }
-        }
-        None => {
-            // Create new annotation
-            match lib
-                .create_annotation(CreateAnnotation {
-                    resource_id,
-                    text: highlight.repr.clone(),
-                    color: Some("yellow".to_string()),
-                    boundary: Some(boundary),
-                    external_id: Some(external_id.to_string()),
-                    content_hash: Some(content_hash.to_string()),
-                })
-                .await
-            {
-                Ok(_) => SyncResult::Created,
-                Err(e) => {
-                    tracing::error!("Failed to create annotation {}: {}", external_id, e);
-                    SyncResult::Error
-                }
-            }
-        }
+    let Some(ann) = existing else {
+        return create_highlight(lib, external_id, resource_id, highlight, content_hash, boundary).await;
+    };
+
+    if is_unchanged(&ann, content_hash) {
+        return SyncResult::Unchanged(());
     }
+
+    update_highlight(lib, external_id, ann.id, highlight, content_hash, boundary).await
 }
 
+async fn create_highlight(
+    lib: &Commonplace<'_>,
+    external_id: &str,
+    resource_id: i32,
+    highlight: &LightHighlight,
+    content_hash: &str,
+    boundary: serde_json::Value,
+) -> SyncResult<()> {
+    let result = lib
+        .create_annotation(CreateAnnotation {
+            resource_id,
+            text: highlight.repr.clone(),
+            color: Some("yellow".to_string()),
+            boundary: Some(boundary),
+            external_id: Some(external_id.to_string()),
+            content_hash: Some(content_hash.to_string()),
+        })
+        .await;
+
+    handle_create_result_unit(result, "annotation", external_id)
+}
+
+async fn update_highlight(
+    lib: &Commonplace<'_>,
+    external_id: &str,
+    id: i32,
+    highlight: &LightHighlight,
+    content_hash: &str,
+    boundary: serde_json::Value,
+) -> SyncResult<()> {
+    let result = lib
+        .update_annotation(
+            id,
+            UpdateAnnotation {
+                text: Some(highlight.repr.clone()),
+                color: Some("yellow".to_string()),
+                boundary: Some(boundary),
+                content_hash: Some(content_hash.to_string()),
+            },
+        )
+        .await;
+
+    handle_update_result_unit(result, id, "annotation", external_id)
+}
 
 async fn soft_delete_orphan_annotations(
     lib: &Commonplace<'_>,
@@ -258,17 +254,11 @@ async fn soft_delete_orphan_annotations(
     };
 
     for orphan in orphans {
-        if is_orphan(&orphan.external_id, seen) {
-            if lib.soft_delete_annotation(orphan.id).await.unwrap_or(false) {
+        let ext_id = orphan.external_id().map(|s| s.to_string());
+        if is_orphan(&ext_id, seen) {
+            if lib.soft_delete_annotation(orphan.id()).await.unwrap_or(false) {
                 stats.annotations_deleted += 1;
             }
         }
-    }
-}
-
-fn is_orphan(external_id: &Option<String>, seen: &HashSet<String>) -> bool {
-    match external_id {
-        Some(id) => !seen.contains(id),
-        None => false,
     }
 }

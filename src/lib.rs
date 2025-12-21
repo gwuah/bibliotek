@@ -18,6 +18,7 @@ pub mod model;
 pub mod pdf_extract;
 pub mod research;
 pub mod s3;
+pub mod sync;
 
 pub fn internal_error<E: std::error::Error>(err: E) -> (StatusCode, String) {
     (StatusCode::INTERNAL_SERVER_ERROR, err.to_string())

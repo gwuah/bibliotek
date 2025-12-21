@@ -15,6 +15,10 @@ use crate::commonplace::{
     compute_comment_hash, compute_note_hash, compute_resource_hash,
 };
 use crate::handler::AppState;
+use crate::sync::{
+    SyncResult, SyncStats, delete_orphans, handle_create_result, handle_create_result_unit,
+    handle_update_result, handle_update_result_unit, is_unchanged, log_find_error,
+};
 
 #[derive(Debug, Deserialize)]
 pub struct SetConfigRequest {
@@ -25,29 +29,6 @@ pub struct SetConfigRequest {
 pub struct ConfigResponse {
     pub db_path: Option<String>,
     pub last_sync_at: Option<String>,
-}
-
-#[derive(Debug, Default)]
-pub struct SyncStats {
-    pub created: i32,
-    pub updated: i32,
-    pub deleted: i32,
-    pub unchanged: i32,
-}
-
-impl SyncStats {
-    fn record_created(&mut self) {
-        self.created += 1;
-    }
-    fn record_updated(&mut self) {
-        self.updated += 1;
-    }
-    fn record_deleted(&mut self) {
-        self.deleted += 1;
-    }
-    fn record_unchanged(&mut self) {
-        self.unchanged += 1;
-    }
 }
 
 #[derive(Debug, Serialize, Default)]
@@ -135,13 +116,6 @@ struct ResearchComment {
 struct ResearchNote {
     id: String,
     content: String,
-}
-
-enum SyncResult<T> {
-    Created(T),
-    Updated(T),
-    Unchanged(T),
-    Error,
 }
 
 fn success<T: Serialize>(data: T) -> Response {
@@ -309,6 +283,14 @@ async fn open_research_db(db_path: &str) -> Result<Connection, Response> {
     })
 }
 
+#[derive(Default)]
+struct SeenIds {
+    resources: HashSet<String>,
+    annotations: HashSet<String>,
+    comments: HashSet<String>,
+    notes: HashSet<String>,
+}
+
 async fn sync_all_entities(
     lib: &Commonplace<'_>,
     research_conn: &Connection,
@@ -368,14 +350,6 @@ async fn sync_all_entities(
     response
 }
 
-#[derive(Default)]
-struct SeenIds {
-    resources: HashSet<String>,
-    annotations: HashSet<String>,
-    comments: HashSet<String>,
-    notes: HashSet<String>,
-}
-
 async fn sync_resource(
     lib: &Commonplace<'_>,
     item: &ResearchItem,
@@ -386,21 +360,9 @@ async fn sync_resource(
     let content_hash = compute_resource_hash(&item.title);
     seen.insert(external_id.clone());
 
-    match upsert_resource(lib, &external_id, &item.title, &content_hash).await {
-        SyncResult::Created(id) => {
-            stats.record_created();
-            Some(id)
-        }
-        SyncResult::Updated(id) => {
-            stats.record_updated();
-            Some(id)
-        }
-        SyncResult::Unchanged(id) => {
-            stats.record_unchanged();
-            Some(id)
-        }
-        SyncResult::Error => None,
-    }
+    upsert_resource(lib, &external_id, &item.title, &content_hash)
+        .await
+        .record(stats)
 }
 
 async fn upsert_resource(
@@ -412,58 +374,59 @@ async fn upsert_resource(
     let existing = match lib.find_resource_by_external_id(external_id).await {
         Ok(r) => r,
         Err(e) => {
-            tracing::error!("Failed to check resource {}: {}", external_id, e);
+            log_find_error("resource", external_id, e);
             return SyncResult::Error;
         }
     };
 
-    match existing {
-        Some(resource) if resource.content_hash.as_deref() == Some(content_hash) => {
-            SyncResult::Unchanged(resource.id)
-        }
-        Some(resource) => {
-            // Content changed, update
-            match lib
-                .update_resource(
-                    resource.id,
-                    UpdateResource {
-                        title: Some(title.to_string()),
-                        resource_type: None,
-                        content_hash: Some(content_hash.to_string()),
-                    },
-                )
-                .await
-            {
-                Ok(Some(_)) => SyncResult::Updated(resource.id),
-                Ok(None) => {
-                    tracing::warn!("Resource {} not found for update", resource.id);
-                    SyncResult::Error
-                }
-                Err(e) => {
-                    tracing::error!("Failed to update resource {}: {}", external_id, e);
-                    SyncResult::Error
-                }
-            }
-        }
-        None => {
-            // Create new
-            match lib
-                .create_resource(CreateResource {
-                    title: title.to_string(),
-                    resource_type: ResourceType::Pdf,
-                    external_id: Some(external_id.to_string()),
-                    content_hash: Some(content_hash.to_string()),
-                })
-                .await
-            {
-                Ok(resource) => SyncResult::Created(resource.id),
-                Err(e) => {
-                    tracing::error!("Failed to create resource {}: {}", external_id, e);
-                    SyncResult::Error
-                }
-            }
-        }
+    let Some(resource) = existing else {
+        return create_resource(lib, external_id, title, content_hash).await;
+    };
+
+    if is_unchanged(&resource, content_hash) {
+        return SyncResult::Unchanged(resource.id);
     }
+
+    update_resource(lib, external_id, resource.id, title, content_hash).await
+}
+
+async fn create_resource(
+    lib: &Commonplace<'_>,
+    external_id: &str,
+    title: &str,
+    content_hash: &str,
+) -> SyncResult<i32> {
+    let result = lib
+        .create_resource(CreateResource {
+            title: title.to_string(),
+            resource_type: ResourceType::Pdf,
+            external_id: Some(external_id.to_string()),
+            content_hash: Some(content_hash.to_string()),
+        })
+        .await;
+
+    handle_create_result(result, |r| r.id, "resource", external_id)
+}
+
+async fn update_resource(
+    lib: &Commonplace<'_>,
+    external_id: &str,
+    id: i32,
+    title: &str,
+    content_hash: &str,
+) -> SyncResult<i32> {
+    let result = lib
+        .update_resource(
+            id,
+            UpdateResource {
+                title: Some(title.to_string()),
+                resource_type: None,
+                content_hash: Some(content_hash.to_string()),
+            },
+        )
+        .await;
+
+    handle_update_result(result, id, "resource", external_id)
 }
 
 async fn sync_item_annotations(
@@ -526,7 +489,7 @@ async fn sync_annotation(
         "source": "research",
     });
 
-    match upsert_annotation(
+    upsert_annotation(
         lib,
         &external_id,
         annotation,
@@ -535,21 +498,7 @@ async fn sync_annotation(
         boundary,
     )
     .await
-    {
-        SyncResult::Created(id) => {
-            stats.record_created();
-            Some(id)
-        }
-        SyncResult::Updated(id) => {
-            stats.record_updated();
-            Some(id)
-        }
-        SyncResult::Unchanged(id) => {
-            stats.record_unchanged();
-            Some(id)
-        }
-        SyncResult::Error => None,
-    }
+    .record(stats)
 }
 
 async fn upsert_annotation(
@@ -563,59 +512,73 @@ async fn upsert_annotation(
     let existing = match lib.find_annotation_by_external_id(external_id).await {
         Ok(a) => a,
         Err(e) => {
-            tracing::error!("Failed to check annotation {}: {}", external_id, e);
+            log_find_error("annotation", external_id, e);
             return SyncResult::Error;
         }
     };
 
-    match existing {
-        Some(ann) if ann.content_hash.as_deref() == Some(content_hash) => {
-            SyncResult::Unchanged(ann.id)
-        }
-        Some(ann) => {
-            match lib
-                .update_annotation(
-                    ann.id,
-                    UpdateAnnotation {
-                        text: Some(annotation.text.clone()),
-                        color: annotation.color.clone(),
-                        boundary: Some(boundary),
-                        content_hash: Some(content_hash.to_string()),
-                    },
-                )
-                .await
-            {
-                Ok(Some(_)) => SyncResult::Updated(ann.id),
-                Ok(None) => {
-                    tracing::warn!("Annotation {} not found for update", ann.id);
-                    SyncResult::Error
-                }
-                Err(e) => {
-                    tracing::error!("Failed to update annotation {}: {}", external_id, e);
-                    SyncResult::Error
-                }
-            }
-        }
-        None => {
-            match lib
-                .create_annotation(CreateAnnotation {
-                    resource_id,
-                    text: annotation.text.clone(),
-                    color: annotation.color.clone(),
-                    boundary: Some(boundary),
-                    external_id: Some(external_id.to_string()),
-                    content_hash: Some(content_hash.to_string()),
-                })
-                .await
-            {
-                Ok(created) => SyncResult::Created(created.id),
-                Err(e) => {
-                    tracing::error!("Failed to create annotation {}: {}", external_id, e);
-                    SyncResult::Error
-                }
-            }
-        }
+    let Some(ann) = existing else {
+        return create_annotation(
+            lib,
+            external_id,
+            annotation,
+            resource_id,
+            content_hash,
+            boundary,
+        )
+        .await;
+    };
+
+    if is_unchanged(&ann, content_hash) {
+        return SyncResult::Unchanged(ann.id);
     }
+
+    update_annotation(lib, external_id, ann.id, annotation, content_hash, boundary).await
+}
+
+async fn create_annotation(
+    lib: &Commonplace<'_>,
+    external_id: &str,
+    annotation: &ResearchAnnotation,
+    resource_id: i32,
+    content_hash: &str,
+    boundary: serde_json::Value,
+) -> SyncResult<i32> {
+    let result = lib
+        .create_annotation(CreateAnnotation {
+            resource_id,
+            text: annotation.text.clone(),
+            color: annotation.color.clone(),
+            boundary: Some(boundary),
+            external_id: Some(external_id.to_string()),
+            content_hash: Some(content_hash.to_string()),
+        })
+        .await;
+
+    handle_create_result(result, |a| a.id, "annotation", external_id)
+}
+
+async fn update_annotation(
+    lib: &Commonplace<'_>,
+    external_id: &str,
+    id: i32,
+    annotation: &ResearchAnnotation,
+    content_hash: &str,
+    boundary: serde_json::Value,
+) -> SyncResult<i32> {
+    let result = lib
+        .update_annotation(
+            id,
+            UpdateAnnotation {
+                text: Some(annotation.text.clone()),
+                color: annotation.color.clone(),
+                boundary: Some(boundary),
+                content_hash: Some(content_hash.to_string()),
+            },
+        )
+        .await;
+
+    handle_update_result(result, id, "annotation", external_id)
 }
 
 async fn sync_annotation_comments(
@@ -650,7 +613,7 @@ async fn sync_comment(
     let content_hash = compute_comment_hash(&comment.content);
     seen.insert(external_id.clone());
 
-    match upsert_comment(
+    upsert_comment(
         lib,
         &external_id,
         &comment.content,
@@ -658,12 +621,7 @@ async fn sync_comment(
         &content_hash,
     )
     .await
-    {
-        SyncResult::Created(()) => stats.record_created(),
-        SyncResult::Updated(()) => stats.record_updated(),
-        SyncResult::Unchanged(()) => stats.record_unchanged(),
-        SyncResult::Error => {}
-    }
+    .record_unit(stats);
 }
 
 async fn upsert_comment(
@@ -676,53 +634,59 @@ async fn upsert_comment(
     let existing = match lib.find_comment_by_external_id(external_id).await {
         Ok(c) => c,
         Err(e) => {
-            tracing::error!("Failed to check comment {}: {}", external_id, e);
+            log_find_error("comment", external_id, e);
             return SyncResult::Error;
         }
     };
 
-    match existing {
-        Some(cmt) if cmt.content_hash.as_deref() == Some(content_hash) => SyncResult::Unchanged(()),
-        Some(cmt) => {
-            match lib
-                .update_comment(
-                    cmt.id,
-                    UpdateComment {
-                        content: content.to_string(),
-                        content_hash: Some(content_hash.to_string()),
-                    },
-                )
-                .await
-            {
-                Ok(Some(_)) => SyncResult::Updated(()),
-                Ok(None) => {
-                    tracing::warn!("Comment {} not found for update", cmt.id);
-                    SyncResult::Error
-                }
-                Err(e) => {
-                    tracing::error!("Failed to update comment {}: {}", external_id, e);
-                    SyncResult::Error
-                }
-            }
-        }
-        None => {
-            match lib
-                .create_comment(CreateComment {
-                    annotation_id,
-                    content: content.to_string(),
-                    external_id: Some(external_id.to_string()),
-                    content_hash: Some(content_hash.to_string()),
-                })
-                .await
-            {
-                Ok(_) => SyncResult::Created(()),
-                Err(e) => {
-                    tracing::error!("Failed to create comment {}: {}", external_id, e);
-                    SyncResult::Error
-                }
-            }
-        }
+    let Some(cmt) = existing else {
+        return create_comment(lib, external_id, content, annotation_id, content_hash).await;
+    };
+
+    if is_unchanged(&cmt, content_hash) {
+        return SyncResult::Unchanged(());
     }
+
+    update_comment(lib, external_id, cmt.id, content, content_hash).await
+}
+
+async fn create_comment(
+    lib: &Commonplace<'_>,
+    external_id: &str,
+    content: &str,
+    annotation_id: i32,
+    content_hash: &str,
+) -> SyncResult<()> {
+    let result = lib
+        .create_comment(CreateComment {
+            annotation_id,
+            content: content.to_string(),
+            external_id: Some(external_id.to_string()),
+            content_hash: Some(content_hash.to_string()),
+        })
+        .await;
+
+    handle_create_result_unit(result, "comment", external_id)
+}
+
+async fn update_comment(
+    lib: &Commonplace<'_>,
+    external_id: &str,
+    id: i32,
+    content: &str,
+    content_hash: &str,
+) -> SyncResult<()> {
+    let result = lib
+        .update_comment(
+            id,
+            UpdateComment {
+                content: content.to_string(),
+                content_hash: Some(content_hash.to_string()),
+            },
+        )
+        .await;
+
+    handle_update_result_unit(result, id, "comment", external_id)
 }
 
 async fn sync_item_notes(
@@ -757,12 +721,9 @@ async fn sync_note(
     let content_hash = compute_note_hash(&note.content);
     seen.insert(external_id.clone());
 
-    match upsert_note(lib, &external_id, &note.content, resource_id, &content_hash).await {
-        SyncResult::Created(()) => stats.record_created(),
-        SyncResult::Updated(()) => stats.record_updated(),
-        SyncResult::Unchanged(()) => stats.record_unchanged(),
-        SyncResult::Error => {}
-    }
+    upsert_note(lib, &external_id, &note.content, resource_id, &content_hash)
+        .await
+        .record_unit(stats);
 }
 
 async fn upsert_note(
@@ -775,53 +736,59 @@ async fn upsert_note(
     let existing = match lib.find_note_by_external_id(external_id).await {
         Ok(n) => n,
         Err(e) => {
-            tracing::error!("Failed to check note {}: {}", external_id, e);
+            log_find_error("note", external_id, e);
             return SyncResult::Error;
         }
     };
 
-    match existing {
-        Some(n) if n.content_hash.as_deref() == Some(content_hash) => SyncResult::Unchanged(()),
-        Some(n) => {
-            match lib
-                .update_note(
-                    n.id,
-                    UpdateNote {
-                        content: content.to_string(),
-                        content_hash: Some(content_hash.to_string()),
-                    },
-                )
-                .await
-            {
-                Ok(Some(_)) => SyncResult::Updated(()),
-                Ok(None) => {
-                    tracing::warn!("Note {} not found for update", n.id);
-                    SyncResult::Error
-                }
-                Err(e) => {
-                    tracing::error!("Failed to update note {}: {}", external_id, e);
-                    SyncResult::Error
-                }
-            }
-        }
-        None => {
-            match lib
-                .create_note(CreateNote {
-                    resource_id,
-                    content: content.to_string(),
-                    external_id: Some(external_id.to_string()),
-                    content_hash: Some(content_hash.to_string()),
-                })
-                .await
-            {
-                Ok(_) => SyncResult::Created(()),
-                Err(e) => {
-                    tracing::error!("Failed to create note {}: {}", external_id, e);
-                    SyncResult::Error
-                }
-            }
-        }
+    let Some(n) = existing else {
+        return create_note(lib, external_id, content, resource_id, content_hash).await;
+    };
+
+    if is_unchanged(&n, content_hash) {
+        return SyncResult::Unchanged(());
     }
+
+    update_note(lib, external_id, n.id, content, content_hash).await
+}
+
+async fn create_note(
+    lib: &Commonplace<'_>,
+    external_id: &str,
+    content: &str,
+    resource_id: i32,
+    content_hash: &str,
+) -> SyncResult<()> {
+    let result = lib
+        .create_note(CreateNote {
+            resource_id,
+            content: content.to_string(),
+            external_id: Some(external_id.to_string()),
+            content_hash: Some(content_hash.to_string()),
+        })
+        .await;
+
+    handle_create_result_unit(result, "note", external_id)
+}
+
+async fn update_note(
+    lib: &Commonplace<'_>,
+    external_id: &str,
+    id: i32,
+    content: &str,
+    content_hash: &str,
+) -> SyncResult<()> {
+    let result = lib
+        .update_note(
+            id,
+            UpdateNote {
+                content: content.to_string(),
+                content_hash: Some(content_hash.to_string()),
+            },
+        )
+        .await;
+
+    handle_update_result_unit(result, id, "note", external_id)
 }
 
 async fn soft_delete_orphans(
@@ -832,104 +799,41 @@ async fn soft_delete_orphans(
     comment_stats: &mut SyncStats,
     note_stats: &mut SyncStats,
 ) {
-    delete_orphan_comments(lib, &seen.comments, comment_stats).await;
-    delete_orphan_annotations(lib, &seen.annotations, annotation_stats).await;
-    delete_orphan_notes(lib, &seen.notes, note_stats).await;
-    delete_orphan_resources(lib, &seen.resources, resource_stats).await;
-}
+    delete_orphans(
+        || lib.find_comments_by_source_prefix("research"),
+        |id| lib.soft_delete_comment(id),
+        &seen.comments,
+        comment_stats,
+        "comment",
+    )
+    .await;
 
-async fn delete_orphan_comments(
-    lib: &Commonplace<'_>,
-    seen: &HashSet<String>,
-    stats: &mut SyncStats,
-) {
-    let orphans = match lib.find_comments_by_source_prefix("research").await {
-        Ok(o) => o,
-        Err(e) => {
-            tracing::error!("Failed to find orphan comments: {}", e);
-            return;
-        }
-    };
+    delete_orphans(
+        || lib.find_annotations_by_source_prefix("research", None),
+        |id| lib.soft_delete_annotation(id),
+        &seen.annotations,
+        annotation_stats,
+        "annotation",
+    )
+    .await;
 
-    for orphan in orphans {
-        if is_orphan(&orphan.external_id, seen) {
-            if lib.soft_delete_comment(orphan.id).await.unwrap_or(false) {
-                stats.record_deleted();
-            }
-        }
-    }
-}
+    delete_orphans(
+        || lib.find_notes_by_source_prefix("research"),
+        |id| lib.soft_delete_note(id),
+        &seen.notes,
+        note_stats,
+        "note",
+    )
+    .await;
 
-async fn delete_orphan_annotations(
-    lib: &Commonplace<'_>,
-    seen: &HashSet<String>,
-    stats: &mut SyncStats,
-) {
-    let orphans = match lib
-        .find_annotations_by_source_prefix("research", None)
-        .await
-    {
-        Ok(o) => o,
-        Err(e) => {
-            tracing::error!("Failed to find orphan annotations: {}", e);
-            return;
-        }
-    };
-
-    for orphan in orphans {
-        if is_orphan(&orphan.external_id, seen) {
-            if lib.soft_delete_annotation(orphan.id).await.unwrap_or(false) {
-                stats.record_deleted();
-            }
-        }
-    }
-}
-
-async fn delete_orphan_notes(lib: &Commonplace<'_>, seen: &HashSet<String>, stats: &mut SyncStats) {
-    let orphans = match lib.find_notes_by_source_prefix("research").await {
-        Ok(o) => o,
-        Err(e) => {
-            tracing::error!("Failed to find orphan notes: {}", e);
-            return;
-        }
-    };
-
-    for orphan in orphans {
-        if is_orphan(&orphan.external_id, seen) {
-            if lib.soft_delete_note(orphan.id).await.unwrap_or(false) {
-                stats.record_deleted();
-            }
-        }
-    }
-}
-
-async fn delete_orphan_resources(
-    lib: &Commonplace<'_>,
-    seen: &HashSet<String>,
-    stats: &mut SyncStats,
-) {
-    let orphans = match lib.find_resources_by_source_prefix("research").await {
-        Ok(o) => o,
-        Err(e) => {
-            tracing::error!("Failed to find orphan resources: {}", e);
-            return;
-        }
-    };
-
-    for orphan in orphans {
-        if is_orphan(&orphan.external_id, seen) {
-            if lib.soft_delete_resource(orphan.id).await.unwrap_or(false) {
-                stats.record_deleted();
-            }
-        }
-    }
-}
-
-fn is_orphan(external_id: &Option<String>, seen: &HashSet<String>) -> bool {
-    match external_id {
-        Some(id) => !seen.contains(id),
-        None => false,
-    }
+    delete_orphans(
+        || lib.find_resources_by_source_prefix("research"),
+        |id| lib.soft_delete_resource(id),
+        &seen.resources,
+        resource_stats,
+        "resource",
+    )
+    .await;
 }
 
 async fn fetch_research_items(conn: &Connection) -> anyhow::Result<Vec<ResearchItem>> {
