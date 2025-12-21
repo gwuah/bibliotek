@@ -10,8 +10,11 @@ use std::path::Path;
 
 use crate::commonplace::{
     Commonplace, CreateAnnotation, CreateComment, CreateNote, CreateResource, ResourceType,
+    UpdateAnnotation, UpdateComment, UpdateNote, UpdateResource,
+    compute_resource_hash, compute_annotation_hash, compute_comment_hash, compute_note_hash,
 };
 use crate::handler::AppState;
+use std::collections::HashSet;
 
 #[derive(Debug, Deserialize)]
 pub struct SetConfigRequest {
@@ -27,13 +30,21 @@ pub struct ConfigResponse {
 #[derive(Debug, Serialize)]
 pub struct SyncResponse {
     pub resources_created: i32,
-    pub resources_skipped: i32,
+    pub resources_updated: i32,
+    pub resources_deleted: i32,
+    pub resources_unchanged: i32,
     pub annotations_created: i32,
-    pub annotations_skipped: i32,
+    pub annotations_updated: i32,
+    pub annotations_deleted: i32,
+    pub annotations_unchanged: i32,
     pub comments_created: i32,
-    pub comments_skipped: i32,
+    pub comments_updated: i32,
+    pub comments_deleted: i32,
+    pub comments_unchanged: i32,
     pub notes_created: i32,
-    pub notes_skipped: i32,
+    pub notes_updated: i32,
+    pub notes_deleted: i32,
+    pub notes_unchanged: i32,
 }
 
 #[derive(Debug, Serialize)]
@@ -218,14 +229,27 @@ pub async fn sync(State(state): State<AppState>) -> Response {
     let lib = Commonplace::new(conn);
     let mut stats = SyncResponse {
         resources_created: 0,
-        resources_skipped: 0,
+        resources_updated: 0,
+        resources_deleted: 0,
+        resources_unchanged: 0,
         annotations_created: 0,
-        annotations_skipped: 0,
+        annotations_updated: 0,
+        annotations_deleted: 0,
+        annotations_unchanged: 0,
         comments_created: 0,
-        comments_skipped: 0,
+        comments_updated: 0,
+        comments_deleted: 0,
+        comments_unchanged: 0,
         notes_created: 0,
-        notes_skipped: 0,
+        notes_updated: 0,
+        notes_deleted: 0,
+        notes_unchanged: 0,
     };
+
+    let mut seen_resources = HashSet::new();
+    let mut seen_annotations = HashSet::new();
+    let mut seen_comments = HashSet::new();
+    let mut seen_notes = HashSet::new();
 
     let items = match fetch_research_items(&research_conn).await {
         Ok(items) => items,
@@ -235,13 +259,44 @@ pub async fn sync(State(state): State<AppState>) -> Response {
         }
     };
 
+    // Phase 1: Upsert all entities
     for item in items {
         let external_id = format!("research:{}", item.id);
+        let content_hash = compute_resource_hash(&item.title);
+        seen_resources.insert(external_id.clone());
 
         let resource_id = match lib.find_resource_by_external_id(&external_id).await {
-            Ok(Some(resource)) => {
-                stats.resources_skipped += 1;
-                resource.id
+            Ok(Some(existing)) => {
+                if existing.content_hash.as_deref() != Some(&content_hash) {
+                    // Content changed, update it
+                    match lib
+                        .update_resource(
+                            existing.id,
+                            UpdateResource {
+                                title: Some(item.title.clone()),
+                                resource_type: None,
+                                content_hash: Some(content_hash),
+                            },
+                        )
+                        .await
+                    {
+                        Ok(Some(_)) => {
+                            stats.resources_updated += 1;
+                        }
+                        Ok(None) => {
+                            tracing::warn!("Resource {} not found for update", existing.id);
+                            continue;
+                        }
+                        Err(e) => {
+                            tracing::error!("Failed to update resource {}: {}", item.id, e);
+                            continue;
+                        }
+                    }
+                    existing.id
+                } else {
+                    stats.resources_unchanged += 1;
+                    existing.id
+                }
             }
             Ok(None) => {
                 match lib
@@ -249,6 +304,7 @@ pub async fn sync(State(state): State<AppState>) -> Response {
                         title: item.title.clone(),
                         resource_type: ResourceType::Pdf,
                         external_id: Some(external_id.clone()),
+                        content_hash: Some(content_hash),
                     })
                     .await
                 {
@@ -278,11 +334,51 @@ pub async fn sync(State(state): State<AppState>) -> Response {
 
         for annotation in annotations {
             let ann_external_id = format!("research:{}", annotation.id);
+            let ann_hash = compute_annotation_hash(
+                &annotation.text,
+                annotation.color.as_deref(),
+            );
+            seen_annotations.insert(ann_external_id.clone());
 
             let annotation_id = match lib.find_annotation_by_external_id(&ann_external_id).await {
                 Ok(Some(existing)) => {
-                    stats.annotations_skipped += 1;
-                    existing.id
+                    if existing.content_hash.as_deref() != Some(&ann_hash) {
+                        // Content changed, update it
+                        let boundary = serde_json::json!({
+                            "pageNumber": annotation.page_number,
+                            "position": annotation.position,
+                            "source": "research",
+                        });
+
+                        match lib
+                            .update_annotation(
+                                existing.id,
+                                UpdateAnnotation {
+                                    text: Some(annotation.text.clone()),
+                                    color: annotation.color.clone(),
+                                    boundary: Some(boundary),
+                                    content_hash: Some(ann_hash),
+                                },
+                            )
+                            .await
+                        {
+                            Ok(Some(_)) => {
+                                stats.annotations_updated += 1;
+                            }
+                            Ok(None) => {
+                                tracing::warn!("Annotation {} not found for update", existing.id);
+                                continue;
+                            }
+                            Err(e) => {
+                                tracing::error!("Failed to update annotation {}: {}", annotation.id, e);
+                                continue;
+                            }
+                        }
+                        existing.id
+                    } else {
+                        stats.annotations_unchanged += 1;
+                        existing.id
+                    }
                 }
                 Ok(None) => {
                     let boundary = serde_json::json!({
@@ -298,6 +394,7 @@ pub async fn sync(State(state): State<AppState>) -> Response {
                             color: annotation.color.clone(),
                             boundary: Some(boundary),
                             external_id: Some(ann_external_id.clone()),
+                            content_hash: Some(ann_hash),
                         })
                         .await
                     {
@@ -327,10 +424,36 @@ pub async fn sync(State(state): State<AppState>) -> Response {
 
             for comment in comments {
                 let comment_external_id = format!("research:{}", comment.id);
+                let comment_hash = compute_comment_hash(&comment.content);
+                seen_comments.insert(comment_external_id.clone());
 
                 match lib.find_comment_by_external_id(&comment_external_id).await {
-                    Ok(Some(_)) => {
-                        stats.comments_skipped += 1;
+                    Ok(Some(existing)) => {
+                        if existing.content_hash.as_deref() != Some(&comment_hash) {
+                            // Content changed, update it
+                            match lib
+                                .update_comment(
+                                    existing.id,
+                                    UpdateComment {
+                                        content: comment.content.clone(),
+                                        content_hash: Some(comment_hash),
+                                    },
+                                )
+                                .await
+                            {
+                                Ok(Some(_)) => {
+                                    stats.comments_updated += 1;
+                                }
+                                Ok(None) => {
+                                    tracing::warn!("Comment {} not found for update", existing.id);
+                                }
+                                Err(e) => {
+                                    tracing::error!("Failed to update comment {}: {}", comment.id, e);
+                                }
+                            }
+                        } else {
+                            stats.comments_unchanged += 1;
+                        }
                     }
                     Ok(None) => {
                         match lib
@@ -338,6 +461,7 @@ pub async fn sync(State(state): State<AppState>) -> Response {
                                 annotation_id,
                                 content: comment.content.clone(),
                                 external_id: Some(comment_external_id),
+                                content_hash: Some(comment_hash),
                             })
                             .await
                         {
@@ -366,10 +490,36 @@ pub async fn sync(State(state): State<AppState>) -> Response {
 
         for note in notes {
             let note_external_id = format!("research:{}", note.id);
+            let note_hash = compute_note_hash(&note.content);
+            seen_notes.insert(note_external_id.clone());
 
             match lib.find_note_by_external_id(&note_external_id).await {
-                Ok(Some(_)) => {
-                    stats.notes_skipped += 1;
+                Ok(Some(existing)) => {
+                    if existing.content_hash.as_deref() != Some(&note_hash) {
+                        // Content changed, update it
+                        match lib
+                            .update_note(
+                                existing.id,
+                                UpdateNote {
+                                    content: note.content.clone(),
+                                    content_hash: Some(note_hash),
+                                },
+                            )
+                            .await
+                        {
+                            Ok(Some(_)) => {
+                                stats.notes_updated += 1;
+                            }
+                            Ok(None) => {
+                                tracing::warn!("Note {} not found for update", existing.id);
+                            }
+                            Err(e) => {
+                                tracing::error!("Failed to update note {}: {}", note.id, e);
+                            }
+                        }
+                    } else {
+                        stats.notes_unchanged += 1;
+                    }
                 }
                 Ok(None) => {
                     match lib
@@ -377,6 +527,7 @@ pub async fn sync(State(state): State<AppState>) -> Response {
                             resource_id,
                             content: note.content.clone(),
                             external_id: Some(note_external_id),
+                            content_hash: Some(note_hash),
                         })
                         .await
                     {
@@ -392,6 +543,95 @@ pub async fn sync(State(state): State<AppState>) -> Response {
                     tracing::error!("Failed to check note {}: {}", note.id, e);
                 }
             }
+        }
+    }
+
+    // Phase 2: Soft delete orphans (order doesn't matter)
+    match lib.find_comments_by_source_prefix("research").await {
+        Ok(orphans) => {
+            for orphan in orphans {
+                if !seen_comments.contains(
+                    orphan.external_id.as_ref().unwrap_or(&String::new()),
+                ) {
+                    match lib.soft_delete_comment(orphan.id).await {
+                        Ok(true) => {
+                            stats.comments_deleted += 1;
+                        }
+                        Ok(false) | Err(_) => {
+                            tracing::warn!("Failed to soft delete comment {}", orphan.id);
+                        }
+                    }
+                }
+            }
+        }
+        Err(e) => {
+            tracing::error!("Failed to find orphan comments: {}", e);
+        }
+    }
+
+    match lib.find_annotations_by_source_prefix("research", None).await {
+        Ok(orphans) => {
+            for orphan in orphans {
+                if !seen_annotations.contains(
+                    orphan.external_id.as_ref().unwrap_or(&String::new()),
+                ) {
+                    match lib.soft_delete_annotation(orphan.id).await {
+                        Ok(true) => {
+                            stats.annotations_deleted += 1;
+                        }
+                        Ok(false) | Err(_) => {
+                            tracing::warn!("Failed to soft delete annotation {}", orphan.id);
+                        }
+                    }
+                }
+            }
+        }
+        Err(e) => {
+            tracing::error!("Failed to find orphan annotations: {}", e);
+        }
+    }
+
+    match lib.find_notes_by_source_prefix("research").await {
+        Ok(orphans) => {
+            for orphan in orphans {
+                if !seen_notes.contains(
+                    orphan.external_id.as_ref().unwrap_or(&String::new()),
+                ) {
+                    match lib.soft_delete_note(orphan.id).await {
+                        Ok(true) => {
+                            stats.notes_deleted += 1;
+                        }
+                        Ok(false) | Err(_) => {
+                            tracing::warn!("Failed to soft delete note {}", orphan.id);
+                        }
+                    }
+                }
+            }
+        }
+        Err(e) => {
+            tracing::error!("Failed to find orphan notes: {}", e);
+        }
+    }
+
+    match lib.find_resources_by_source_prefix("research").await {
+        Ok(orphans) => {
+            for orphan in orphans {
+                if !seen_resources.contains(
+                    orphan.external_id.as_ref().unwrap_or(&String::new()),
+                ) {
+                    match lib.soft_delete_resource(orphan.id).await {
+                        Ok(true) => {
+                            stats.resources_deleted += 1;
+                        }
+                        Ok(false) | Err(_) => {
+                            tracing::warn!("Failed to soft delete resource {}", orphan.id);
+                        }
+                    }
+                }
+            }
+        }
+        Err(e) => {
+            tracing::error!("Failed to find orphan resources: {}", e);
         }
     }
 
@@ -438,7 +678,7 @@ async fn fetch_research_annotations(
             json_extract(position, '$.boundingRect.pageNumber') as page_number,
             position
         FROM annotations 
-        WHERE item_id = ?
+        WHERE item_id = ? AND deleted_at IS NULL
     "#;
 
     let mut rows = conn.query(query, libsql::params![item_id]).await?;
@@ -464,7 +704,7 @@ async fn fetch_research_comments(
     let query = r#"
         SELECT id, content
         FROM comments 
-        WHERE annotation_id = ?
+        WHERE annotation_id = ? AND deleted_at IS NULL
     "#;
 
     let mut rows = conn.query(query, libsql::params![annotation_id]).await?;
@@ -487,7 +727,7 @@ async fn fetch_research_notes(
     let query = r#"
         SELECT id, content
         FROM notes 
-        WHERE item_id = ?
+        WHERE item_id = ? AND deleted_at IS NULL
     "#;
 
     let mut rows = conn.query(query, libsql::params![item_id]).await?;

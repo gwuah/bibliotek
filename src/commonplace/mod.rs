@@ -15,5 +15,9 @@ pub fn migrations() -> &'static [(&'static str, &'static str)] {
             "commonplace_002_external_id.sql",
             include_str!("migrations/002_external_id.sql"),
         ),
+        (
+            "commonplace_003_sync_metadata.sql",
+            include_str!("migrations/003_sync_metadata.sql"),
+        ),
     ]
 }
