@@ -8,6 +8,11 @@ use std::path::Path;
 
 use std::env;
 
+const SYSTEM_MIGRATIONS: &[(&str, &str)] = &[(
+    "system/000_migrations_table.sql",
+    include_str!("migrations/system/000_migrations_table.sql"),
+)];
+
 const MIGRATIONS: &[(&str, &str)] = &[
     ("001_schema.sql", include_str!("migrations/001_schema.sql")),
     (
@@ -33,9 +38,54 @@ fn get_home_dir() -> Result<String> {
 }
 
 impl Database {
-    /// Get a reference to the underlying connection for use with the commonplace library
     pub fn connection(&self) -> &Connection {
         &self.conn
+    }
+
+    async fn is_migration_applied(conn: &Connection, name: &str) -> Result<bool> {
+        let query = "SELECT 1 FROM _migrations WHERE name = ?";
+        match conn.query(query, libsql::params![name]).await {
+            Ok(mut rows) => Ok(rows.next().await?.is_some()),
+            Err(e) => {
+                if e.to_string().contains("no such table") {
+                    Ok(false)
+                } else {
+                    Err(e.into())
+                }
+            }
+        }
+    }
+
+    async fn record_migration(conn: &Connection, name: &str) -> Result<()> {
+        let query = r#"
+            INSERT INTO _migrations (name, applied_at)
+            VALUES (?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+        "#;
+        match conn.execute(query, libsql::params![name]).await {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                if e.to_string().contains("no such table") {
+                    Ok(())
+                } else {
+                    Err(e.into())
+                }
+            }
+        }
+    }
+
+    async fn run_migration(conn: &Connection, name: &str, sql: &str) -> Result<()> {
+        if Self::is_migration_applied(conn, name).await? {
+            tracing::debug!("migration {} already applied, skipping", name);
+            return Ok(());
+        }
+
+        tracing::info!("applying migration: {}", name);
+        conn.execute_batch(sql)
+            .await
+            .map_err(|e| anyhow::anyhow!("failed to execute migration {name}: {e}"))?;
+
+        Self::record_migration(conn, name).await?;
+        Ok(())
     }
 
     pub async fn new(cfg: &Config) -> Result<Self> {
@@ -47,19 +97,20 @@ impl Database {
             .map_err(|e| anyhow::anyhow!("failed to connect to database: {e}"))?;
         tracing::debug!("established connection to db!");
 
-        for (filename, sql) in MIGRATIONS {
-            tracing::info!("executing migration: {}", filename);
-            conn.execute_batch(sql)
-                .await
-                .map_err(|e| anyhow::anyhow!("failed to execute migration {filename}: {e}"))?;
+        for (filename, sql) in SYSTEM_MIGRATIONS {
+            Self::run_migration(&conn, filename, sql).await?;
         }
 
-        // Run commonplace module migrations
+        for (filename, sql) in MIGRATIONS {
+            Self::run_migration(&conn, filename, sql).await?;
+        }
+
         for (filename, sql) in crate::commonplace::migrations() {
-            tracing::info!("executing migration: {}", filename);
-            conn.execute_batch(sql)
-                .await
-                .map_err(|e| anyhow::anyhow!("failed to execute migration {filename}: {e}"))?;
+            Self::run_migration(&conn, filename, sql).await?;
+        }
+
+        for (filename, sql) in crate::research::migrations() {
+            Self::run_migration(&conn, filename, sql).await?;
         }
 
         tracing::info!("db migrations complete");

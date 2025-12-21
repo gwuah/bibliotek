@@ -1,5 +1,3 @@
-//! HTTP Handlers for the Commonplace API
-
 use axum::{
     Json,
     extract::{Path, Query, State},
@@ -14,24 +12,18 @@ use super::{
 };
 use crate::handler::AppState;
 
-// ============================================================================
-// Query Parameters
-// ============================================================================
-
 #[derive(Debug, Deserialize)]
-pub struct PaginationParams {
+pub struct ResourceListParams {
     pub limit: Option<i32>,
     pub offset: Option<i32>,
+    #[serde(rename = "type")]
+    pub resource_type: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct SearchParams {
     pub q: Option<String>,
 }
-
-// ============================================================================
-// Response Types
-// ============================================================================
 
 #[derive(Debug, Serialize)]
 pub struct CommonplaceApiResponse<T> {
@@ -81,10 +73,6 @@ fn internal_error(msg: &str) -> Response {
         .into_response()
 }
 
-// ============================================================================
-// Resource Handlers
-// ============================================================================
-
 pub async fn create_resource(
     State(state): State<AppState>,
     Json(payload): Json<CreateResource>,
@@ -128,13 +116,16 @@ pub async fn get_resource_full(State(state): State<AppState>, Path(id): Path<i32
 
 pub async fn list_resources(
     State(state): State<AppState>,
-    Query(params): Query<PaginationParams>,
+    Query(params): Query<ResourceListParams>,
 ) -> Response {
     let lib = Commonplace::new(state.db.connection());
     let limit = params.limit.unwrap_or(50).min(100);
     let offset = params.offset.unwrap_or(0);
 
-    match lib.list_resources(limit, offset).await {
+    match lib
+        .list_resources(limit, offset, params.resource_type.as_deref())
+        .await
+    {
         Ok(resources) => success(resources),
         Err(e) => {
             tracing::error!("Failed to list resources: {}", e);
@@ -172,10 +163,6 @@ pub async fn delete_resource(State(state): State<AppState>, Path(id): Path<i32>)
         }
     }
 }
-
-// ============================================================================
-// Annotation Handlers
-// ============================================================================
 
 pub async fn create_annotation(
     State(state): State<AppState>,
@@ -250,10 +237,6 @@ pub async fn delete_annotation(State(state): State<AppState>, Path(id): Path<i32
     }
 }
 
-// ============================================================================
-// Comment Handlers
-// ============================================================================
-
 pub async fn create_comment(
     State(state): State<AppState>,
     Json(payload): Json<CreateComment>,
@@ -327,10 +310,6 @@ pub async fn delete_comment(State(state): State<AppState>, Path(id): Path<i32>) 
     }
 }
 
-// ============================================================================
-// Note Handlers
-// ============================================================================
-
 pub async fn create_note(
     State(state): State<AppState>,
     Json(payload): Json<CreateNote>,
@@ -403,10 +382,6 @@ pub async fn delete_note(State(state): State<AppState>, Path(id): Path<i32>) -> 
         }
     }
 }
-
-// ============================================================================
-// Word Handlers
-// ============================================================================
 
 pub async fn create_word(
     State(state): State<AppState>,
