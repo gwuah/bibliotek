@@ -31,6 +31,7 @@ export default defineConfig({
       "/categories": apiProxy,
       "/commonplace": apiProxy,
       "/light": apiProxy,
+      "/research": apiProxy,
     },
   },
 });

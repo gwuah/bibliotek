@@ -16,6 +16,7 @@ pub mod handler;
 pub mod light;
 pub mod model;
 pub mod pdf_extract;
+pub mod research;
 pub mod s3;
 
 pub fn internal_error<E: std::error::Error>(err: E) -> (StatusCode, String) {

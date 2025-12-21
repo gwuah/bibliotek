@@ -1,5 +1,3 @@
-//! HTTP Handlers for the Commonplace API
-
 use axum::{
     Json,
     extract::{Path, Query, State},
@@ -14,10 +12,6 @@ use super::{
 };
 use crate::handler::AppState;
 
-// ============================================================================
-// Query Parameters
-// ============================================================================
-
 #[derive(Debug, Deserialize)]
 pub struct ResourceListParams {
     pub limit: Option<i32>,
@@ -30,10 +24,6 @@ pub struct ResourceListParams {
 pub struct SearchParams {
     pub q: Option<String>,
 }
-
-// ============================================================================
-// Response Types
-// ============================================================================
 
 #[derive(Debug, Serialize)]
 pub struct CommonplaceApiResponse<T> {
@@ -82,10 +72,6 @@ fn internal_error(msg: &str) -> Response {
     )
         .into_response()
 }
-
-// ============================================================================
-// Resource Handlers
-// ============================================================================
 
 pub async fn create_resource(
     State(state): State<AppState>,
@@ -178,10 +164,6 @@ pub async fn delete_resource(State(state): State<AppState>, Path(id): Path<i32>)
     }
 }
 
-// ============================================================================
-// Annotation Handlers
-// ============================================================================
-
 pub async fn create_annotation(
     State(state): State<AppState>,
     Json(payload): Json<CreateAnnotation>,
@@ -254,10 +236,6 @@ pub async fn delete_annotation(State(state): State<AppState>, Path(id): Path<i32
         }
     }
 }
-
-// ============================================================================
-// Comment Handlers
-// ============================================================================
 
 pub async fn create_comment(
     State(state): State<AppState>,
@@ -332,10 +310,6 @@ pub async fn delete_comment(State(state): State<AppState>, Path(id): Path<i32>) 
     }
 }
 
-// ============================================================================
-// Note Handlers
-// ============================================================================
-
 pub async fn create_note(
     State(state): State<AppState>,
     Json(payload): Json<CreateNote>,
@@ -408,10 +382,6 @@ pub async fn delete_note(State(state): State<AppState>, Path(id): Path<i32>) -> 
         }
     }
 }
-
-// ============================================================================
-// Word Handlers
-// ============================================================================
 
 pub async fn create_word(
     State(state): State<AppState>,

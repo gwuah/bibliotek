@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import HighlightsPage from './HighlightsPage.jsx'
+import ResearchPage from './ResearchPage.jsx'
 
 function capitalizeTitle(title) {
   if (!title) return title
@@ -576,7 +577,7 @@ function BooksPage() {
 }
 
 // Path-based routing using History API
-const VALID_PAGES = ['books', 'highlights']
+const VALID_PAGES = ['books', 'highlights', 'research']
 
 function getPageFromPath() {
   const path = window.location.pathname.slice(1) // Remove leading /
@@ -618,11 +619,18 @@ export default function App() {
         >
           Highlights
         </button>
+        <button 
+          className={currentPage === 'research' ? 'active' : ''}
+          onClick={() => navigateTo('research')}
+        >
+          Research
+        </button>
       </nav>
 
       {/* Page Content */}
       {currentPage === 'books' && <BooksPage />}
       {currentPage === 'highlights' && <HighlightsPage />}
+      {currentPage === 'research' && <ResearchPage />}
     </div>
   )
 }

@@ -12,6 +12,7 @@ use bibliotek::handler::{
     serve_index, update_book, upload,
 };
 use bibliotek::light;
+use bibliotek::research;
 use bibliotek::s3::ObjectStorage;
 use bibliotek::{
     config::{Cli, Config},
@@ -26,7 +27,6 @@ use tracing;
 
 #[tokio::main]
 async fn main() {
-    // Load .env file if it exists
     dotenv::dotenv().ok();
 
     tracing_subscriber::fmt().json().init();
@@ -50,7 +50,6 @@ async fn main() {
     let cancellation_token = CancellationToken::new();
     let (shutdown_complete_tx, mut shutdown_complete_rx) = mpsc::channel::<()>(1);
 
-    // CORS configuration for browser extension requests
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
@@ -69,6 +68,7 @@ async fn main() {
         .route("/upload", post(upload))
         .nest("/commonplace", commonplace::routes())
         .nest("/light", light::routes())
+        .nest("/research", research::routes())
         .nest_service("/static", ServeDir::new("web/static"))
         .layer(cors)
         .with_state(AppState { db, s3 });

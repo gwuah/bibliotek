@@ -1,17 +1,7 @@
-//! Commonplace Library
-//!
-//! A library for centralizing reading annotations, notes, and vocabulary across all devices.
-//! Named after the "commonplace book" - a personal journal for recording knowledge from reading.
-//! Provides CRUD operations for resources, annotations, comments, notes, and words.
-
 use anyhow::Result;
 use libsql::Connection;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-
-// ============================================================================
-// Models
-// ============================================================================
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -43,6 +33,7 @@ pub struct Resource {
     pub title: String,
     #[serde(rename = "type")]
     pub resource_type: ResourceType,
+    pub external_id: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -54,6 +45,7 @@ pub struct Annotation {
     pub text: String,
     pub color: Option<String>,
     pub boundary: Option<JsonValue>,
+    pub external_id: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -63,6 +55,7 @@ pub struct Comment {
     pub id: i32,
     pub annotation_id: i32,
     pub content: String,
+    pub external_id: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -72,6 +65,7 @@ pub struct Note {
     pub id: i32,
     pub resource_id: i32,
     pub content: String,
+    pub external_id: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -86,15 +80,12 @@ pub struct Word {
     pub updated_at: String,
 }
 
-// ============================================================================
-// Create DTOs
-// ============================================================================
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateResource {
     pub title: String,
     #[serde(rename = "type")]
     pub resource_type: ResourceType,
+    pub external_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -110,6 +101,7 @@ pub struct CreateAnnotation {
     pub text: String,
     pub color: Option<String>,
     pub boundary: Option<JsonValue>,
+    pub external_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -123,6 +115,7 @@ pub struct UpdateAnnotation {
 pub struct CreateComment {
     pub annotation_id: i32,
     pub content: String,
+    pub external_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -134,6 +127,7 @@ pub struct UpdateComment {
 pub struct CreateNote {
     pub resource_id: i32,
     pub content: String,
+    pub external_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -154,11 +148,6 @@ pub struct UpdateWord {
     pub meaning: Option<String>,
 }
 
-// ============================================================================
-// Commonplace Library
-// ============================================================================
-
-/// The core commonplace library providing CRUD operations for all entities.
 pub struct Commonplace<'a> {
     conn: &'a Connection,
 }
@@ -168,22 +157,18 @@ impl<'a> Commonplace<'a> {
         Self { conn }
     }
 
-    // ========================================================================
-    // Resource CRUD
-    // ========================================================================
-
     pub async fn create_resource(&self, input: CreateResource) -> Result<Resource> {
         let query = r#"
-            INSERT INTO resources (title, type)
-            VALUES (?, ?)
-            RETURNING id, title, type, created_at, updated_at
+            INSERT INTO resources (title, type, external_id)
+            VALUES (?, ?, ?)
+            RETURNING id, title, type, external_id, created_at, updated_at
         "#;
 
         let mut rows = self
             .conn
             .query(
                 query,
-                libsql::params![input.title, input.resource_type.as_str()],
+                libsql::params![input.title, input.resource_type.as_str(), input.external_id],
             )
             .await?;
 
@@ -196,7 +181,7 @@ impl<'a> Commonplace<'a> {
 
     pub async fn get_resource(&self, id: i32) -> Result<Option<Resource>> {
         let query = r#"
-            SELECT id, title, type, created_at, updated_at
+            SELECT id, title, type, external_id, created_at, updated_at
             FROM resources WHERE id = ?
         "#;
 
@@ -211,7 +196,7 @@ impl<'a> Commonplace<'a> {
 
     pub async fn find_resource_by_title(&self, title: &str) -> Result<Option<Resource>> {
         let query = r#"
-            SELECT id, title, type, created_at, updated_at
+            SELECT id, title, type, external_id, created_at, updated_at
             FROM resources WHERE title = ?
         "#;
 
@@ -224,12 +209,35 @@ impl<'a> Commonplace<'a> {
         }
     }
 
-    pub async fn list_resources(&self, limit: i32, offset: i32, resource_type: Option<&str>) -> Result<Vec<Resource>> {
+    pub async fn find_resource_by_external_id(
+        &self,
+        external_id: &str,
+    ) -> Result<Option<Resource>> {
+        let query = r#"
+            SELECT id, title, type, external_id, created_at, updated_at
+            FROM resources WHERE external_id = ?
+        "#;
+
+        let mut rows = self.conn.query(query, libsql::params![external_id]).await?;
+
+        if let Some(row) = rows.next().await? {
+            Ok(Some(self.row_to_resource(&row)?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub async fn list_resources(
+        &self,
+        limit: i32,
+        offset: i32,
+        resource_type: Option<&str>,
+    ) -> Result<Vec<Resource>> {
         let mut resources = Vec::new();
 
         if let Some(rtype) = resource_type {
             let query = r#"
-                SELECT id, title, type, created_at, updated_at
+                SELECT id, title, type, external_id, created_at, updated_at
                 FROM resources
                 WHERE type = ?
                 ORDER BY created_at DESC
@@ -246,7 +254,7 @@ impl<'a> Commonplace<'a> {
             }
         } else {
             let query = r#"
-                SELECT id, title, type, created_at, updated_at
+                SELECT id, title, type, external_id, created_at, updated_at
                 FROM resources
                 ORDER BY created_at DESC
                 LIMIT ? OFFSET ?
@@ -270,7 +278,6 @@ impl<'a> Commonplace<'a> {
         id: i32,
         input: UpdateResource,
     ) -> Result<Option<Resource>> {
-        // First check if exists
         if self.get_resource(id).await?.is_none() {
             return Ok(None);
         }
@@ -317,14 +324,11 @@ impl<'a> Commonplace<'a> {
             id: row.get(0)?,
             title: row.get(1)?,
             resource_type,
-            created_at: row.get(3)?,
-            updated_at: row.get(4)?,
+            external_id: row.get(3)?,
+            created_at: row.get(4)?,
+            updated_at: row.get(5)?,
         })
     }
-
-    // ========================================================================
-    // Annotation CRUD
-    // ========================================================================
 
     pub async fn create_annotation(&self, input: CreateAnnotation) -> Result<Annotation> {
         let boundary_json = input
@@ -334,16 +338,22 @@ impl<'a> Commonplace<'a> {
             .transpose()?;
 
         let query = r#"
-            INSERT INTO annotations (resource_id, text, color, boundary)
-            VALUES (?, ?, ?, ?)
-            RETURNING id, resource_id, text, color, boundary, created_at, updated_at
+            INSERT INTO annotations (resource_id, text, color, boundary, external_id)
+            VALUES (?, ?, ?, ?, ?)
+            RETURNING id, resource_id, text, color, boundary, external_id, created_at, updated_at
         "#;
 
         let mut rows = self
             .conn
             .query(
                 query,
-                libsql::params![input.resource_id, input.text, input.color, boundary_json],
+                libsql::params![
+                    input.resource_id,
+                    input.text,
+                    input.color,
+                    boundary_json,
+                    input.external_id
+                ],
             )
             .await?;
 
@@ -356,7 +366,7 @@ impl<'a> Commonplace<'a> {
 
     pub async fn get_annotation(&self, id: i32) -> Result<Option<Annotation>> {
         let query = r#"
-            SELECT id, resource_id, text, color, boundary, created_at, updated_at
+            SELECT id, resource_id, text, color, boundary, external_id, created_at, updated_at
             FROM annotations WHERE id = ?
         "#;
 
@@ -369,9 +379,27 @@ impl<'a> Commonplace<'a> {
         }
     }
 
+    pub async fn find_annotation_by_external_id(
+        &self,
+        external_id: &str,
+    ) -> Result<Option<Annotation>> {
+        let query = r#"
+            SELECT id, resource_id, text, color, boundary, external_id, created_at, updated_at
+            FROM annotations WHERE external_id = ?
+        "#;
+
+        let mut rows = self.conn.query(query, libsql::params![external_id]).await?;
+
+        if let Some(row) = rows.next().await? {
+            Ok(Some(self.row_to_annotation(&row)?))
+        } else {
+            Ok(None)
+        }
+    }
+
     pub async fn list_annotations_by_resource(&self, resource_id: i32) -> Result<Vec<Annotation>> {
         let query = r#"
-            SELECT id, resource_id, text, color, boundary, created_at, updated_at
+            SELECT id, resource_id, text, color, boundary, external_id, created_at, updated_at
             FROM annotations
             WHERE resource_id = ?
             ORDER BY created_at ASC
@@ -444,25 +472,25 @@ impl<'a> Commonplace<'a> {
             text: row.get(2)?,
             color: row.get(3)?,
             boundary,
-            created_at: row.get(5)?,
-            updated_at: row.get(6)?,
+            external_id: row.get(5)?,
+            created_at: row.get(6)?,
+            updated_at: row.get(7)?,
         })
     }
 
-    // ========================================================================
-    // Comment CRUD
-    // ========================================================================
-
     pub async fn create_comment(&self, input: CreateComment) -> Result<Comment> {
         let query = r#"
-            INSERT INTO comments (annotation_id, content)
-            VALUES (?, ?)
-            RETURNING id, annotation_id, content, created_at, updated_at
+            INSERT INTO comments (annotation_id, content, external_id)
+            VALUES (?, ?, ?)
+            RETURNING id, annotation_id, content, external_id, created_at, updated_at
         "#;
 
         let mut rows = self
             .conn
-            .query(query, libsql::params![input.annotation_id, input.content])
+            .query(
+                query,
+                libsql::params![input.annotation_id, input.content, input.external_id],
+            )
             .await?;
 
         if let Some(row) = rows.next().await? {
@@ -474,7 +502,7 @@ impl<'a> Commonplace<'a> {
 
     pub async fn get_comment(&self, id: i32) -> Result<Option<Comment>> {
         let query = r#"
-            SELECT id, annotation_id, content, created_at, updated_at
+            SELECT id, annotation_id, content, external_id, created_at, updated_at
             FROM comments WHERE id = ?
         "#;
 
@@ -487,9 +515,24 @@ impl<'a> Commonplace<'a> {
         }
     }
 
+    pub async fn find_comment_by_external_id(&self, external_id: &str) -> Result<Option<Comment>> {
+        let query = r#"
+            SELECT id, annotation_id, content, external_id, created_at, updated_at
+            FROM comments WHERE external_id = ?
+        "#;
+
+        let mut rows = self.conn.query(query, libsql::params![external_id]).await?;
+
+        if let Some(row) = rows.next().await? {
+            Ok(Some(self.row_to_comment(&row)?))
+        } else {
+            Ok(None)
+        }
+    }
+
     pub async fn list_comments_by_annotation(&self, annotation_id: i32) -> Result<Vec<Comment>> {
         let query = r#"
-            SELECT id, annotation_id, content, created_at, updated_at
+            SELECT id, annotation_id, content, external_id, created_at, updated_at
             FROM comments
             WHERE annotation_id = ?
             ORDER BY created_at ASC
@@ -538,25 +581,25 @@ impl<'a> Commonplace<'a> {
             id: row.get(0)?,
             annotation_id: row.get(1)?,
             content: row.get(2)?,
-            created_at: row.get(3)?,
-            updated_at: row.get(4)?,
+            external_id: row.get(3)?,
+            created_at: row.get(4)?,
+            updated_at: row.get(5)?,
         })
     }
 
-    // ========================================================================
-    // Note CRUD
-    // ========================================================================
-
     pub async fn create_note(&self, input: CreateNote) -> Result<Note> {
         let query = r#"
-            INSERT INTO notes (resource_id, content)
-            VALUES (?, ?)
-            RETURNING id, resource_id, content, created_at, updated_at
+            INSERT INTO notes (resource_id, content, external_id)
+            VALUES (?, ?, ?)
+            RETURNING id, resource_id, content, external_id, created_at, updated_at
         "#;
 
         let mut rows = self
             .conn
-            .query(query, libsql::params![input.resource_id, input.content])
+            .query(
+                query,
+                libsql::params![input.resource_id, input.content, input.external_id],
+            )
             .await?;
 
         if let Some(row) = rows.next().await? {
@@ -568,7 +611,7 @@ impl<'a> Commonplace<'a> {
 
     pub async fn get_note(&self, id: i32) -> Result<Option<Note>> {
         let query = r#"
-            SELECT id, resource_id, content, created_at, updated_at
+            SELECT id, resource_id, content, external_id, created_at, updated_at
             FROM notes WHERE id = ?
         "#;
 
@@ -581,9 +624,24 @@ impl<'a> Commonplace<'a> {
         }
     }
 
+    pub async fn find_note_by_external_id(&self, external_id: &str) -> Result<Option<Note>> {
+        let query = r#"
+            SELECT id, resource_id, content, external_id, created_at, updated_at
+            FROM notes WHERE external_id = ?
+        "#;
+
+        let mut rows = self.conn.query(query, libsql::params![external_id]).await?;
+
+        if let Some(row) = rows.next().await? {
+            Ok(Some(self.row_to_note(&row)?))
+        } else {
+            Ok(None)
+        }
+    }
+
     pub async fn list_notes_by_resource(&self, resource_id: i32) -> Result<Vec<Note>> {
         let query = r#"
-            SELECT id, resource_id, content, created_at, updated_at
+            SELECT id, resource_id, content, external_id, created_at, updated_at
             FROM notes
             WHERE resource_id = ?
             ORDER BY created_at DESC
@@ -629,14 +687,11 @@ impl<'a> Commonplace<'a> {
             id: row.get(0)?,
             resource_id: row.get(1)?,
             content: row.get(2)?,
-            created_at: row.get(3)?,
-            updated_at: row.get(4)?,
+            external_id: row.get(3)?,
+            created_at: row.get(4)?,
+            updated_at: row.get(5)?,
         })
     }
-
-    // ========================================================================
-    // Word CRUD
-    // ========================================================================
 
     pub async fn create_word(&self, input: CreateWord) -> Result<Word> {
         let query = r#"
@@ -764,11 +819,6 @@ impl<'a> Commonplace<'a> {
         })
     }
 
-    // ========================================================================
-    // Convenience methods for getting full resource data
-    // ========================================================================
-
-    /// Get a resource with all its annotations, notes, and words
     pub async fn get_resource_full(&self, id: i32) -> Result<Option<ResourceFull>> {
         let resource = match self.get_resource(id).await? {
             Some(r) => r,
@@ -779,7 +829,6 @@ impl<'a> Commonplace<'a> {
         let notes = self.list_notes_by_resource(id).await?;
         let words = self.list_words_by_resource(id).await?;
 
-        // Get comments for each annotation
         let mut annotations_with_comments = Vec::new();
         for annotation in annotations {
             let comments = self.list_comments_by_annotation(annotation.id).await?;
@@ -797,10 +846,6 @@ impl<'a> Commonplace<'a> {
         }))
     }
 }
-
-// ============================================================================
-// Full Resource View
-// ============================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AnnotationWithComments {
