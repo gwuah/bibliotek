@@ -576,61 +576,72 @@ function BooksPage() {
   )
 }
 
-// Path-based routing using History API
 const VALID_PAGES = ['books', 'highlights', 'research']
 
-function getPageFromPath() {
-  const path = window.location.pathname.slice(1) // Remove leading /
-  return VALID_PAGES.includes(path) ? path : 'books'
+function parseRoute() {
+  const path = window.location.pathname.slice(1)
+  const segments = path.split('/').filter(Boolean)
+  
+  if (segments.length === 0) {
+    return { page: 'books', resourceId: null }
+  }
+  
+  const page = VALID_PAGES.includes(segments[0]) ? segments[0] : 'books'
+  const resourceId = segments[1] ? parseInt(segments[1], 10) : null
+  
+  return { page, resourceId: isNaN(resourceId) ? null : resourceId }
 }
 
 export default function App() {
-  const [currentPage, setCurrentPage] = useState(getPageFromPath)
+  const [route, setRoute] = useState(parseRoute)
 
-  // Listen for popstate (back/forward button)
   useEffect(() => {
     const handlePopState = () => {
-      setCurrentPage(getPageFromPath())
+      setRoute(parseRoute())
     }
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
   }, [])
 
-  const navigateTo = (page) => {
-    if (page !== currentPage) {
-      window.history.pushState({}, '', `/${page}`)
-      setCurrentPage(page)
+  const navigateTo = (page, resourceId = null) => {
+    const newPath = resourceId ? `/${page}/${resourceId}` : `/${page}`
+    if (window.location.pathname !== newPath) {
+      window.history.pushState({}, '', newPath)
+      setRoute({ page, resourceId })
     }
   }
 
   return (
     <div className="p-10">
-      {/* Navigation */}
       <nav className="app-nav">
         <button 
-          className={currentPage === 'books' ? 'active' : ''}
+          className={route.page === 'books' ? 'active' : ''}
           onClick={() => navigateTo('books')}
         >
           Books
         </button>
         <button 
-          className={currentPage === 'highlights' ? 'active' : ''}
+          className={route.page === 'highlights' ? 'active' : ''}
           onClick={() => navigateTo('highlights')}
         >
           Highlights
         </button>
         <button 
-          className={currentPage === 'research' ? 'active' : ''}
+          className={route.page === 'research' ? 'active' : ''}
           onClick={() => navigateTo('research')}
         >
           Research
         </button>
       </nav>
 
-      {/* Page Content */}
-      {currentPage === 'books' && <BooksPage />}
-      {currentPage === 'highlights' && <HighlightsPage />}
-      {currentPage === 'research' && <ResearchPage />}
+      {route.page === 'books' && <BooksPage />}
+      {route.page === 'highlights' && <HighlightsPage />}
+      {route.page === 'research' && (
+        <ResearchPage 
+          resourceId={route.resourceId}
+          onNavigate={(id) => navigateTo('research', id)}
+        />
+      )}
     </div>
   )
 }

@@ -1,14 +1,5 @@
 import React, { useState, useEffect } from 'react'
 
-/**
- * ResearchPage - Displays synced research annotations from the Research app
- * Allows configuring the Research database path and syncing data
- */
-
-// ============================================================================
-// Utility Functions
-// ============================================================================
-
 function formatDate(dateString) {
   if (!dateString) return ''
   const date = new Date(dateString)
@@ -23,10 +14,6 @@ function trimTitle(title, maxLength = 60) {
   if (title.length <= maxLength) return title
   return title.substring(0, maxLength).trim() + '...'
 }
-
-// ============================================================================
-// Components
-// ============================================================================
 
 function ConfigPanel({ config, onConfigChange, onSync, syncing }) {
   const [dbPath, setDbPath] = useState('')
@@ -68,7 +55,7 @@ function ConfigPanel({ config, onConfigChange, onSync, syncing }) {
 
   return (
     <div className="research-config-panel">
-      <h3>Research Database</h3>
+      {/* <h3>Research Database</h3> */}
       
       <div className="research-config-form">
         <label>
@@ -102,11 +89,11 @@ function ConfigPanel({ config, onConfigChange, onSync, syncing }) {
         
         {error && <p className="research-error">{error}</p>}
         
-        {config?.last_sync_at && (
+        {/* {config?.last_sync_at && (
           <p className="research-last-sync">
             Last synced: {formatDate(config.last_sync_at)}
           </p>
-        )}
+        )} */}
       </div>
     </div>
   )
@@ -117,7 +104,7 @@ function SyncStats({ stats }) {
 
   return (
     <div className="research-sync-stats">
-      <h4>Sync Results</h4>
+      {/* <h4>Sync Results</h4> */}
       <div className="research-stats-grid">
         <div className="research-stat-item">
           <span className="research-stat-label">Resources</span>
@@ -184,22 +171,28 @@ function AnnotationItem({ annotation }) {
   )
 }
 
-function ResourceDetail({ resource, onBack }) {
+function ResourceDetail({ resourceId, onBack }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     loadResourceFull()
-  }, [resource.id])
+  }, [resourceId])
 
   const loadResourceFull = async () => {
     try {
       setLoading(true)
-      const res = await fetch(`/commonplace/resources/${resource.id}/full`)
+      setError(null)
+      const res = await fetch(`/commonplace/resources/${resourceId}/full`)
       if (res.ok) {
         const result = await res.json()
         setData(result.data)
+      } else {
+        setError('Resource not found')
       }
+    } catch (err) {
+      setError(err.message)
     } finally {
       setLoading(false)
     }
@@ -209,48 +202,67 @@ function ResourceDetail({ resource, onBack }) {
     return <div className="research-loading">Loading...</div>
   }
 
+  if (error) {
+    return (
+      <div className="research-detail">
+        <button onClick={onBack} className="research-back-btn">
+          ← Back to list
+        </button>
+        <p className="research-error">{error}</p>
+      </div>
+    )
+  }
+
+  const hasNotes = data?.notes && data.notes.length > 0
+  const hasAnnotations = data?.annotations && data.annotations.length > 0
+
   return (
     <div className="research-detail">
-      <button onClick={onBack} className="research-back-btn">
-        ← Back to list
-      </button>
+      <div className="research-detail-header">
+        <button onClick={onBack} className="research-back-btn">
+          ← Back to list
+        </button>
+        <h2 className="research-detail-title">{data?.title}</h2>
+      </div>
       
-      <h2 className="research-detail-title">{resource.title}</h2>
-      
-      {/* Notes Section */}
-      {data?.notes && data.notes.length > 0 && (
-        <div className="research-section">
-          <h3>Notes ({data.notes.length})</h3>
-          <div className="research-notes">
-            {data.notes.map((note) => (
-              <div key={note.id} className="research-note">
-                <div dangerouslySetInnerHTML={{ __html: note.content }} />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-      
-      {/* Annotations Section */}
-      {data?.annotations && data.annotations.length > 0 && (
-        <div className="research-section">
-          <h3>Annotations ({data.annotations.length})</h3>
-          <div className="research-annotations">
-            {data.annotations.map((ann) => (
-              <AnnotationItem key={ann.id} annotation={ann} />
-            ))}
-          </div>
-        </div>
-      )}
-      
-      {(!data?.annotations?.length && !data?.notes?.length) && (
+      {(!hasNotes && !hasAnnotations) ? (
         <p className="research-empty">No annotations or notes for this resource.</p>
+      ) : (
+        <div className="research-detail-columns">
+          <div className="research-detail-col">
+            {hasNotes && (
+              <div className="research-section">
+                <h3>Notes ({data.notes.length})</h3>
+                <div className="research-notes">
+                  {data.notes.map((note) => (
+                    <div key={note.id} className="research-note">
+                      <div dangerouslySetInnerHTML={{ __html: note.content }} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          
+          <div className="research-detail-col">
+            {hasAnnotations && (
+              <div className="research-section">
+                <h3>Annotations ({data.annotations.length})</h3>
+                <div className="research-annotations">
+                  {data.annotations.map((ann) => (
+                    <AnnotationItem key={ann.id} annotation={ann} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   )
 }
 
-function ResourceList({ resources, onSelect }) {
+function ResourceList({ resources, onNavigate }) {
   if (!resources.length) {
     return <p className="research-empty">No resources synced yet. Configure the database path and sync.</p>
   }
@@ -261,7 +273,7 @@ function ResourceList({ resources, onSelect }) {
         <div 
           key={resource.id} 
           className="research-list-item"
-          onClick={() => onSelect(resource)}
+          onClick={() => onNavigate(resource.id)}
         >
           <span className="research-list-title">{trimTitle(resource.title)}</span>
           <span className="research-list-date">{formatDate(resource.created_at)}</span>
@@ -271,14 +283,9 @@ function ResourceList({ resources, onSelect }) {
   )
 }
 
-// ============================================================================
-// Main Component
-// ============================================================================
-
-export default function ResearchPage() {
+export default function ResearchPage({ resourceId, onNavigate }) {
   const [config, setConfig] = useState(null)
   const [resources, setResources] = useState([])
-  const [selectedResource, setSelectedResource] = useState(null)
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [syncStats, setSyncStats] = useState(null)
@@ -293,7 +300,6 @@ export default function ResearchPage() {
       setLoading(true)
       setError(null)
 
-      // Load config and PDF resources in parallel
       const [configRes, resourcesRes] = await Promise.all([
         fetch('/research/config'),
         fetch('/commonplace/resources?limit=100&type=pdf')
@@ -330,8 +336,6 @@ export default function ResearchPage() {
       }
 
       setSyncStats(data.data)
-      
-      // Reload resources after sync
       await loadData()
     } catch (err) {
       setError(err.message)
@@ -344,6 +348,17 @@ export default function ResearchPage() {
     return (
       <div className="research-container">
         <div className="research-loading">Loading...</div>
+      </div>
+    )
+  }
+
+  if (resourceId) {
+    return (
+      <div className="research-container">
+        <ResourceDetail 
+          resourceId={resourceId} 
+          onBack={() => onNavigate(null)} 
+        />
       </div>
     )
   }
@@ -364,22 +379,12 @@ export default function ResearchPage() {
       </div>
       
       <div className="research-main">
-        {selectedResource ? (
-          <ResourceDetail 
-            resource={selectedResource} 
-            onBack={() => setSelectedResource(null)} 
-          />
-        ) : (
-          <>
-            <h2 className="research-heading">Research Papers ({resources.length})</h2>
-            <ResourceList 
-              resources={resources} 
-              onSelect={setSelectedResource} 
-            />
-          </>
-        )}
+        <h2 className="research-heading">Research Papers ({resources.length})</h2>
+        <ResourceList 
+          resources={resources} 
+          onNavigate={onNavigate} 
+        />
       </div>
     </div>
   )
 }
-
