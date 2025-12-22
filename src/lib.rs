@@ -18,6 +18,7 @@ pub mod model;
 pub mod pdf_extract;
 pub mod research;
 pub mod s3;
+pub mod sync;
 
 pub fn internal_error<E: std::error::Error>(err: E) -> (StatusCode, String) {
     (StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
@@ -54,19 +55,13 @@ pub fn get_s3_url(service: &str, bucket: &str, key: &str) -> String {
     }
 }
 
-async fn safe_parse_str<'a>(
-    field_name: &str,
-    s: axum::extract::multipart::Field<'a>,
-) -> Result<String, HandlerError> {
+async fn safe_parse_str<'a>(field_name: &str, s: axum::extract::multipart::Field<'a>) -> Result<String, HandlerError> {
     s.text()
         .await
         .map_err(|e| HandlerError::ValidationError(format!("{}: {}", field_name, e.to_string())))
 }
 
-async fn safe_parse_num<'a>(
-    field_name: &str,
-    s: axum::extract::multipart::Field<'a>,
-) -> Result<i32, HandlerError> {
+async fn safe_parse_num<'a>(field_name: &str, s: axum::extract::multipart::Field<'a>) -> Result<i32, HandlerError> {
     s.text()
         .await
         .map_err(|e| HandlerError::ValidationError(format!("{}: {}", field_name, e.to_string())))?

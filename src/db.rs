@@ -8,17 +8,12 @@ use std::path::Path;
 
 use std::env;
 
-const SYSTEM_MIGRATIONS: &[(&str, &str)] = &[(
-    "system/000_migrations_table.sql",
-    include_str!("migrations/system/000_migrations_table.sql"),
-)];
+const SYSTEM_MIGRATIONS: &[(&str, &str)] =
+    &[("system/000_migrations_table.sql", include_str!("migrations/system/000_migrations_table.sql"))];
 
 const MIGRATIONS: &[(&str, &str)] = &[
     ("001_schema.sql", include_str!("migrations/001_schema.sql")),
-    (
-        "002_seed_categories.sql",
-        include_str!("migrations/002_seed_categories.sql"),
-    ),
+    ("002_seed_categories.sql", include_str!("migrations/002_seed_categories.sql")),
 ];
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -283,15 +278,11 @@ ORDER BY type, count DESC;
             let aggregate_type = row
                 .get::<String>(0)
                 .map_err(|e| anyhow::anyhow!("failed to get type: {e}"))?;
-            let id = row
-                .get(1)
-                .map_err(|e| anyhow::anyhow!("failed to get id: {e}"))?;
+            let id = row.get(1).map_err(|e| anyhow::anyhow!("failed to get id: {e}"))?;
             let name = row
                 .get::<String>(2)
                 .map_err(|e| anyhow::anyhow!("failed to get name: {e}"))?;
-            let count = row
-                .get(3)
-                .map_err(|e| anyhow::anyhow!("failed to get count: {e}"))?;
+            let count = row.get(3).map_err(|e| anyhow::anyhow!("failed to get count: {e}"))?;
 
             match aggregate_type.as_str() {
                 "author" => author_aggregates.push(AuthorAggregate {
@@ -386,9 +377,7 @@ GROUP BY books.id, books.title, books.url, books.cover_url, books.ratings
 
     pub async fn get_or_create_author(&self, name: &str) -> Result<i32> {
         let insert_query = "INSERT OR IGNORE INTO authors (name) VALUES (?)";
-        self.conn
-            .execute(insert_query, libsql::params![name])
-            .await?;
+        self.conn.execute(insert_query, libsql::params![name]).await?;
 
         let select_query = "SELECT id FROM authors WHERE name = ? LIMIT 1";
         let mut rows = self.conn.query(select_query, libsql::params![name]).await?;
@@ -402,9 +391,7 @@ GROUP BY books.id, books.title, books.url, books.cover_url, books.ratings
 
     pub async fn get_or_create_tag(&self, name: &str) -> Result<i32> {
         let insert_query = "INSERT OR IGNORE INTO tags (name) VALUES (?)";
-        self.conn
-            .execute(insert_query, libsql::params![name])
-            .await?;
+        self.conn.execute(insert_query, libsql::params![name]).await?;
 
         let select_query = "SELECT id FROM tags WHERE name = ? LIMIT 1";
         let mut rows = self.conn.query(select_query, libsql::params![name]).await?;
@@ -418,9 +405,7 @@ GROUP BY books.id, books.title, books.url, books.cover_url, books.ratings
 
     pub async fn get_or_create_category(&self, name: &str) -> Result<i32> {
         let insert_query = "INSERT OR IGNORE INTO categories (name) VALUES (?)";
-        self.conn
-            .execute(insert_query, libsql::params![name])
-            .await?;
+        self.conn.execute(insert_query, libsql::params![name]).await?;
 
         let select_query = "SELECT id FROM categories WHERE name = ? LIMIT 1";
         let mut rows = self.conn.query(select_query, libsql::params![name]).await?;
@@ -492,10 +477,7 @@ GROUP BY books.id, books.title, books.url, books.cover_url, books.ratings
 
         let mut rows = self
             .conn
-            .query(
-                insert_book,
-                libsql::params![title, url, cover_url, description, pages, ratings],
-            )
+            .query(insert_book, libsql::params![title, url, cover_url, description, pages, ratings])
             .await?;
 
         let book_id: i32 = if let Some(row) = rows.next().await? {
@@ -506,8 +488,7 @@ GROUP BY books.id, books.title, books.url, books.cover_url, books.ratings
 
         for author_name in author_names {
             let author_id = self.get_or_create_author(author_name).await?;
-            let link_query =
-                "INSERT OR IGNORE INTO book_authors (book_id, author_id) VALUES (?, ?)";
+            let link_query = "INSERT OR IGNORE INTO book_authors (book_id, author_id) VALUES (?, ?)";
             self.conn
                 .execute(link_query, libsql::params![book_id, author_id])
                 .await?;
@@ -516,15 +497,12 @@ GROUP BY books.id, books.title, books.url, books.cover_url, books.ratings
         for tag_name in tag_names {
             let tag_id = self.get_or_create_tag(tag_name).await?;
             let link_query = "INSERT OR IGNORE INTO book_tags (book_id, tag_id) VALUES (?, ?)";
-            self.conn
-                .execute(link_query, libsql::params![book_id, tag_id])
-                .await?;
+            self.conn.execute(link_query, libsql::params![book_id, tag_id]).await?;
         }
 
         for category_name in category_names {
             let category_id = self.get_or_create_category(category_name).await?;
-            let link_query =
-                "INSERT OR IGNORE INTO book_categories (book_id, category_id) VALUES (?, ?)";
+            let link_query = "INSERT OR IGNORE INTO book_categories (book_id, category_id) VALUES (?, ?)";
             self.conn
                 .execute(link_query, libsql::params![book_id, category_id])
                 .await?;
@@ -575,10 +553,7 @@ GROUP BY books.id, books.title, books.url, books.cover_url, books.ratings
             .await?;
 
         self.conn
-            .execute(
-                "DELETE FROM book_authors WHERE book_id = ?",
-                libsql::params![book_id],
-            )
+            .execute("DELETE FROM book_authors WHERE book_id = ?", libsql::params![book_id])
             .await?;
         for author_id in author_ids {
             self.conn
@@ -590,10 +565,7 @@ GROUP BY books.id, books.title, books.url, books.cover_url, books.ratings
         }
 
         self.conn
-            .execute(
-                "DELETE FROM book_tags WHERE book_id = ?",
-                libsql::params![book_id],
-            )
+            .execute("DELETE FROM book_tags WHERE book_id = ?", libsql::params![book_id])
             .await?;
         for tag_id in tag_ids {
             self.conn
@@ -605,10 +577,7 @@ GROUP BY books.id, books.title, books.url, books.cover_url, books.ratings
         }
 
         self.conn
-            .execute(
-                "DELETE FROM book_categories WHERE book_id = ?",
-                libsql::params![book_id],
-            )
+            .execute("DELETE FROM book_categories WHERE book_id = ?", libsql::params![book_id])
             .await?;
         for category_id in category_ids {
             self.conn
@@ -624,17 +593,11 @@ GROUP BY books.id, books.title, books.url, books.cover_url, books.ratings
 
     pub async fn create_author(&self, name: &str) -> Result<Author> {
         self.conn
-            .execute(
-                "INSERT INTO authors (name) VALUES (?)",
-                libsql::params![name],
-            )
+            .execute("INSERT INTO authors (name) VALUES (?)", libsql::params![name])
             .await?;
         let mut rows = self
             .conn
-            .query(
-                "SELECT id, name FROM authors WHERE name = ?",
-                libsql::params![name],
-            )
+            .query("SELECT id, name FROM authors WHERE name = ?", libsql::params![name])
             .await?;
         if let Some(row) = rows.next().await? {
             Ok(Author {
@@ -652,10 +615,7 @@ GROUP BY books.id, books.title, books.url, books.cover_url, books.ratings
             .await?;
         let mut rows = self
             .conn
-            .query(
-                "SELECT id, name FROM tags WHERE name = ?",
-                libsql::params![name],
-            )
+            .query("SELECT id, name FROM tags WHERE name = ?", libsql::params![name])
             .await?;
         if let Some(row) = rows.next().await? {
             Ok(Tag {
@@ -669,17 +629,11 @@ GROUP BY books.id, books.title, books.url, books.cover_url, books.ratings
 
     pub async fn create_category(&self, name: &str) -> Result<Category> {
         self.conn
-            .execute(
-                "INSERT INTO categories (name) VALUES (?)",
-                libsql::params![name],
-            )
+            .execute("INSERT INTO categories (name) VALUES (?)", libsql::params![name])
             .await?;
         let mut rows = self
             .conn
-            .query(
-                "SELECT id, name FROM categories WHERE name = ?",
-                libsql::params![name],
-            )
+            .query("SELECT id, name FROM categories WHERE name = ?", libsql::params![name])
             .await?;
         if let Some(row) = rows.next().await? {
             Ok(Category {

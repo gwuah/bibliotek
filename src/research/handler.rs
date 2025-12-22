@@ -6,12 +6,19 @@ use axum::{
 };
 use libsql::{Builder, Connection};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::path::Path;
 
 use crate::commonplace::{
-    Commonplace, CreateAnnotation, CreateComment, CreateNote, CreateResource, ResourceType,
+    Commonplace, CreateAnnotation, CreateComment, CreateNote, CreateResource, ResourceType, UpdateAnnotation,
+    UpdateComment, UpdateNote, UpdateResource, compute_annotation_hash, compute_comment_hash, compute_note_hash,
+    compute_resource_hash,
 };
 use crate::handler::AppState;
+use crate::sync::{
+    SyncResult, SyncStats, delete_orphans, handle_create_result, handle_create_result_unit, handle_update_result,
+    handle_update_result_unit, is_unchanged, log_find_error,
+};
 
 #[derive(Debug, Deserialize)]
 pub struct SetConfigRequest {
@@ -24,16 +31,54 @@ pub struct ConfigResponse {
     pub last_sync_at: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Default)]
 pub struct SyncResponse {
     pub resources_created: i32,
-    pub resources_skipped: i32,
+    pub resources_updated: i32,
+    pub resources_deleted: i32,
+    pub resources_unchanged: i32,
     pub annotations_created: i32,
-    pub annotations_skipped: i32,
+    pub annotations_updated: i32,
+    pub annotations_deleted: i32,
+    pub annotations_unchanged: i32,
     pub comments_created: i32,
-    pub comments_skipped: i32,
+    pub comments_updated: i32,
+    pub comments_deleted: i32,
+    pub comments_unchanged: i32,
     pub notes_created: i32,
-    pub notes_skipped: i32,
+    pub notes_updated: i32,
+    pub notes_deleted: i32,
+    pub notes_unchanged: i32,
+}
+
+impl SyncResponse {
+    fn apply_resources(&mut self, stats: &SyncStats) {
+        self.resources_created = stats.created;
+        self.resources_updated = stats.updated;
+        self.resources_deleted = stats.deleted;
+        self.resources_unchanged = stats.unchanged;
+    }
+
+    fn apply_annotations(&mut self, stats: &SyncStats) {
+        self.annotations_created = stats.created;
+        self.annotations_updated = stats.updated;
+        self.annotations_deleted = stats.deleted;
+        self.annotations_unchanged = stats.unchanged;
+    }
+
+    fn apply_comments(&mut self, stats: &SyncStats) {
+        self.comments_created = stats.created;
+        self.comments_updated = stats.updated;
+        self.comments_deleted = stats.deleted;
+        self.comments_unchanged = stats.unchanged;
+    }
+
+    fn apply_notes(&mut self, stats: &SyncStats) {
+        self.notes_created = stats.created;
+        self.notes_updated = stats.updated;
+        self.notes_deleted = stats.deleted;
+        self.notes_unchanged = stats.unchanged;
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -44,30 +89,6 @@ struct ApiResponse<T> {
 #[derive(Debug, Serialize)]
 struct ErrorResponse {
     error: String,
-}
-
-fn success<T: Serialize>(data: T) -> Response {
-    (StatusCode::OK, Json(ApiResponse { data })).into_response()
-}
-
-fn bad_request(msg: &str) -> Response {
-    (
-        StatusCode::BAD_REQUEST,
-        Json(ErrorResponse {
-            error: msg.to_string(),
-        }),
-    )
-        .into_response()
-}
-
-fn internal_error(msg: &str) -> Response {
-    (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        Json(ErrorResponse {
-            error: msg.to_string(),
-        }),
-    )
-        .into_response()
 }
 
 #[derive(Debug)]
@@ -97,22 +118,28 @@ struct ResearchNote {
     content: String,
 }
 
-pub async fn get_config(State(state): State<AppState>) -> Response {
-    let query = r#"
-        SELECT db_path, last_sync_at FROM research_config WHERE id = 1
-    "#;
+fn success<T: Serialize>(data: T) -> Response {
+    (StatusCode::OK, Json(ApiResponse { data })).into_response()
+}
 
+fn bad_request(msg: &str) -> Response {
+    (StatusCode::BAD_REQUEST, Json(ErrorResponse { error: msg.to_string() })).into_response()
+}
+
+fn internal_error(msg: &str) -> Response {
+    (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse { error: msg.to_string() })).into_response()
+}
+
+pub async fn get_config(State(state): State<AppState>) -> Response {
+    let query = r#"SELECT db_path, last_sync_at FROM research_config WHERE id = 1"#;
     let conn = state.db.connection();
+
     match conn.query(query, ()).await {
         Ok(mut rows) => match rows.next().await {
-            Ok(Some(row)) => {
-                let db_path: Option<String> = row.get(0).ok();
-                let last_sync_at: Option<String> = row.get(1).ok();
-                success(ConfigResponse {
-                    db_path,
-                    last_sync_at,
-                })
-            }
+            Ok(Some(row)) => success(ConfigResponse {
+                db_path: row.get(0).ok(),
+                last_sync_at: row.get(1).ok(),
+            }),
             Ok(None) => success(ConfigResponse {
                 db_path: None,
                 last_sync_at: None,
@@ -129,10 +156,7 @@ pub async fn get_config(State(state): State<AppState>) -> Response {
     }
 }
 
-pub async fn set_config(
-    State(state): State<AppState>,
-    Json(payload): Json<SetConfigRequest>,
-) -> Response {
+pub async fn set_config(State(state): State<AppState>, Json(payload): Json<SetConfigRequest>) -> Response {
     if !Path::new(&payload.db_path).exists() {
         return bad_request("Database file does not exist at the specified path");
     }
@@ -146,10 +170,7 @@ pub async fn set_config(
     "#;
 
     let conn = state.db.connection();
-    match conn
-        .execute(query, libsql::params![payload.db_path.clone()])
-        .await
-    {
+    match conn.execute(query, libsql::params![payload.db_path.clone()]).await {
         Ok(_) => success(ConfigResponse {
             db_path: Some(payload.db_path),
             last_sync_at: None,
@@ -162,69 +183,16 @@ pub async fn set_config(
 }
 
 pub async fn sync(State(state): State<AppState>) -> Response {
-    let query = r#"SELECT db_path FROM research_config WHERE id = 1"#;
     let conn = state.db.connection();
 
-    let db_path: String = match conn.query(query, ()).await {
-        Ok(mut rows) => match rows.next().await {
-            Ok(Some(row)) => match row.get::<String>(0) {
-                Ok(path) => path,
-                Err(_) => {
-                    return bad_request(
-                        "Research database path not configured. Please set the path first.",
-                    );
-                }
-            },
-            Ok(None) => {
-                return bad_request(
-                    "Research database path not configured. Please set the path first.",
-                );
-            }
-            Err(e) => {
-                tracing::error!("Failed to get config: {}", e);
-                return internal_error("Failed to get config");
-            }
-        },
-        Err(e) => {
-            tracing::error!("Failed to query config: {}", e);
-            return internal_error("Failed to query config");
-        }
+    let db_path = match get_research_db_path(conn).await {
+        Ok(path) => path,
+        Err(response) => return response,
     };
 
-    if !Path::new(&db_path).exists() {
-        return bad_request("Research database file no longer exists at the configured path");
-    }
-
-    let research_db = match Builder::new_local(&db_path)
-        .flags(libsql::OpenFlags::SQLITE_OPEN_READ_ONLY)
-        .build()
-        .await
-    {
-        Ok(db) => db,
-        Err(e) => {
-            tracing::error!("Failed to open Research database: {}", e);
-            return internal_error("Failed to open Research database");
-        }
-    };
-
-    let research_conn = match research_db.connect() {
+    let research_conn = match open_research_db(&db_path).await {
         Ok(conn) => conn,
-        Err(e) => {
-            tracing::error!("Failed to connect to Research database: {}", e);
-            return internal_error("Failed to connect to Research database");
-        }
-    };
-
-    let lib = Commonplace::new(conn);
-    let mut stats = SyncResponse {
-        resources_created: 0,
-        resources_skipped: 0,
-        annotations_created: 0,
-        annotations_skipped: 0,
-        comments_created: 0,
-        comments_skipped: 0,
-        notes_created: 0,
-        notes_skipped: 0,
+        Err(response) => return response,
     };
 
     let items = match fetch_research_items(&research_conn).await {
@@ -235,185 +203,575 @@ pub async fn sync(State(state): State<AppState>) -> Response {
         }
     };
 
-    for item in items {
-        let external_id = format!("research:{}", item.id);
+    let lib = Commonplace::new(conn);
+    let stats = sync_all_entities(&lib, &research_conn, items).await;
 
-        let resource_id = match lib.find_resource_by_external_id(&external_id).await {
-            Ok(Some(resource)) => {
-                stats.resources_skipped += 1;
-                resource.id
-            }
-            Ok(None) => {
-                match lib
-                    .create_resource(CreateResource {
-                        title: item.title.clone(),
-                        resource_type: ResourceType::Pdf,
-                        external_id: Some(external_id.clone()),
-                    })
-                    .await
-                {
-                    Ok(resource) => {
-                        stats.resources_created += 1;
-                        resource.id
-                    }
-                    Err(e) => {
-                        tracing::error!("Failed to create resource for {}: {}", item.id, e);
-                        continue;
-                    }
-                }
-            }
-            Err(e) => {
-                tracing::error!("Failed to check resource {}: {}", item.id, e);
-                continue;
-            }
-        };
-
-        let annotations = match fetch_research_annotations(&research_conn, &item.id).await {
-            Ok(a) => a,
-            Err(e) => {
-                tracing::error!("Failed to fetch annotations for {}: {}", item.id, e);
-                continue;
-            }
-        };
-
-        for annotation in annotations {
-            let ann_external_id = format!("research:{}", annotation.id);
-
-            let annotation_id = match lib.find_annotation_by_external_id(&ann_external_id).await {
-                Ok(Some(existing)) => {
-                    stats.annotations_skipped += 1;
-                    existing.id
-                }
-                Ok(None) => {
-                    let boundary = serde_json::json!({
-                        "pageNumber": annotation.page_number,
-                        "position": annotation.position,
-                        "source": "research",
-                    });
-
-                    match lib
-                        .create_annotation(CreateAnnotation {
-                            resource_id,
-                            text: annotation.text.clone(),
-                            color: annotation.color.clone(),
-                            boundary: Some(boundary),
-                            external_id: Some(ann_external_id.clone()),
-                        })
-                        .await
-                    {
-                        Ok(created) => {
-                            stats.annotations_created += 1;
-                            created.id
-                        }
-                        Err(e) => {
-                            tracing::error!("Failed to create annotation {}: {}", annotation.id, e);
-                            continue;
-                        }
-                    }
-                }
-                Err(e) => {
-                    tracing::error!("Failed to check annotation {}: {}", annotation.id, e);
-                    continue;
-                }
-            };
-
-            let comments = match fetch_research_comments(&research_conn, &annotation.id).await {
-                Ok(c) => c,
-                Err(e) => {
-                    tracing::error!("Failed to fetch comments for {}: {}", annotation.id, e);
-                    continue;
-                }
-            };
-
-            for comment in comments {
-                let comment_external_id = format!("research:{}", comment.id);
-
-                match lib.find_comment_by_external_id(&comment_external_id).await {
-                    Ok(Some(_)) => {
-                        stats.comments_skipped += 1;
-                    }
-                    Ok(None) => {
-                        match lib
-                            .create_comment(CreateComment {
-                                annotation_id,
-                                content: comment.content.clone(),
-                                external_id: Some(comment_external_id),
-                            })
-                            .await
-                        {
-                            Ok(_) => {
-                                stats.comments_created += 1;
-                            }
-                            Err(e) => {
-                                tracing::error!("Failed to create comment {}: {}", comment.id, e);
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        tracing::error!("Failed to check comment {}: {}", comment.id, e);
-                    }
-                }
-            }
-        }
-
-        let notes = match fetch_research_notes(&research_conn, &item.id).await {
-            Ok(n) => n,
-            Err(e) => {
-                tracing::error!("Failed to fetch notes for {}: {}", item.id, e);
-                continue;
-            }
-        };
-
-        for note in notes {
-            let note_external_id = format!("research:{}", note.id);
-
-            match lib.find_note_by_external_id(&note_external_id).await {
-                Ok(Some(_)) => {
-                    stats.notes_skipped += 1;
-                }
-                Ok(None) => {
-                    match lib
-                        .create_note(CreateNote {
-                            resource_id,
-                            content: note.content.clone(),
-                            external_id: Some(note_external_id),
-                        })
-                        .await
-                    {
-                        Ok(_) => {
-                            stats.notes_created += 1;
-                        }
-                        Err(e) => {
-                            tracing::error!("Failed to create note {}: {}", note.id, e);
-                        }
-                    }
-                }
-                Err(e) => {
-                    tracing::error!("Failed to check note {}: {}", note.id, e);
-                }
-            }
-        }
-    }
-
-    let update_query = r#"
-        UPDATE research_config 
-        SET last_sync_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
-            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-        WHERE id = 1
-    "#;
-    let _ = conn.execute(update_query, ()).await;
+    let _ = conn
+        .execute(
+            r#"
+            UPDATE research_config 
+            SET last_sync_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'),
+                updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+            WHERE id = 1
+        "#,
+            (),
+        )
+        .await;
 
     success(stats)
 }
 
+async fn get_research_db_path(conn: &libsql::Connection) -> Result<String, Response> {
+    let query = r#"SELECT db_path FROM research_config WHERE id = 1"#;
+    let not_configured = "Research database path not configured. Please set the path first.";
+
+    let mut rows = conn.query(query, ()).await.map_err(|e| {
+        tracing::error!("Failed to query config: {}", e);
+        internal_error("Failed to query config")
+    })?;
+
+    let row = rows.next().await.map_err(|e| {
+        tracing::error!("Failed to get config: {}", e);
+        internal_error("Failed to get config")
+    })?;
+
+    let path: String = row
+        .ok_or_else(|| bad_request(not_configured))?
+        .get(0)
+        .map_err(|_| bad_request(not_configured))?;
+
+    if !Path::new(&path).exists() {
+        return Err(bad_request("Research database file no longer exists at the configured path"));
+    }
+
+    Ok(path)
+}
+
+async fn open_research_db(db_path: &str) -> Result<Connection, Response> {
+    let db = Builder::new_local(db_path)
+        .flags(libsql::OpenFlags::SQLITE_OPEN_READ_ONLY)
+        .build()
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to open Research database: {}", e);
+            internal_error("Failed to open Research database")
+        })?;
+
+    db.connect().map_err(|e| {
+        tracing::error!("Failed to connect to Research database: {}", e);
+        internal_error("Failed to connect to Research database")
+    })
+}
+
+#[derive(Default)]
+struct SeenIds {
+    resources: HashSet<String>,
+    annotations: HashSet<String>,
+    comments: HashSet<String>,
+    notes: HashSet<String>,
+}
+
+async fn sync_all_entities(
+    lib: &Commonplace<'_>,
+    research_conn: &Connection,
+    items: Vec<ResearchItem>,
+) -> SyncResponse {
+    let mut response = SyncResponse::default();
+    let mut seen = SeenIds::default();
+
+    let mut resource_stats = SyncStats::default();
+    let mut annotation_stats = SyncStats::default();
+    let mut comment_stats = SyncStats::default();
+    let mut note_stats = SyncStats::default();
+
+    for item in items {
+        let resource_id = match sync_resource(lib, &item, &mut resource_stats, &mut seen.resources).await {
+            Some(id) => id,
+            None => continue,
+        };
+
+        sync_item_annotations(
+            lib,
+            research_conn,
+            &item,
+            resource_id,
+            &mut annotation_stats,
+            &mut comment_stats,
+            &mut seen,
+        )
+        .await;
+        sync_item_notes(lib, research_conn, &item, resource_id, &mut note_stats, &mut seen.notes).await;
+    }
+
+    soft_delete_orphans(lib, &seen, &mut resource_stats, &mut annotation_stats, &mut comment_stats, &mut note_stats)
+        .await;
+
+    response.apply_resources(&resource_stats);
+    response.apply_annotations(&annotation_stats);
+    response.apply_comments(&comment_stats);
+    response.apply_notes(&note_stats);
+
+    response
+}
+
+async fn sync_resource(
+    lib: &Commonplace<'_>,
+    item: &ResearchItem,
+    stats: &mut SyncStats,
+    seen: &mut HashSet<String>,
+) -> Option<i32> {
+    let external_id = format!("research:{}", item.id);
+    let content_hash = compute_resource_hash(&item.title);
+    seen.insert(external_id.clone());
+
+    upsert_resource(lib, &external_id, &item.title, &content_hash)
+        .await
+        .record(stats)
+}
+
+async fn upsert_resource(lib: &Commonplace<'_>, external_id: &str, title: &str, content_hash: &str) -> SyncResult<i32> {
+    let existing = match lib.find_resource_by_external_id(external_id).await {
+        Ok(r) => r,
+        Err(e) => {
+            log_find_error("resource", external_id, e);
+            return SyncResult::Error;
+        }
+    };
+
+    let Some(resource) = existing else {
+        return create_resource(lib, external_id, title, content_hash).await;
+    };
+
+    if is_unchanged(&resource, content_hash) {
+        return SyncResult::Unchanged(resource.id);
+    }
+
+    update_resource(lib, external_id, resource.id, title, content_hash).await
+}
+
+async fn create_resource(lib: &Commonplace<'_>, external_id: &str, title: &str, content_hash: &str) -> SyncResult<i32> {
+    let result = lib
+        .create_resource(CreateResource {
+            title: title.to_string(),
+            resource_type: ResourceType::Pdf,
+            external_id: Some(external_id.to_string()),
+            content_hash: Some(content_hash.to_string()),
+        })
+        .await;
+
+    handle_create_result(result, |r| r.id, "resource", external_id)
+}
+
+async fn update_resource(
+    lib: &Commonplace<'_>,
+    external_id: &str,
+    id: i32,
+    title: &str,
+    content_hash: &str,
+) -> SyncResult<i32> {
+    let result = lib
+        .update_resource(
+            id,
+            UpdateResource {
+                title: Some(title.to_string()),
+                resource_type: None,
+                content_hash: Some(content_hash.to_string()),
+            },
+        )
+        .await;
+
+    handle_update_result(result, id, "resource", external_id)
+}
+
+async fn sync_item_annotations(
+    lib: &Commonplace<'_>,
+    research_conn: &Connection,
+    item: &ResearchItem,
+    resource_id: i32,
+    annotation_stats: &mut SyncStats,
+    comment_stats: &mut SyncStats,
+    seen: &mut SeenIds,
+) {
+    let annotations = match fetch_research_annotations(research_conn, &item.id).await {
+        Ok(a) => a,
+        Err(e) => {
+            tracing::error!("Failed to fetch annotations for {}: {}", item.id, e);
+            return;
+        }
+    };
+
+    for annotation in annotations {
+        let annotation_id =
+            match sync_annotation(lib, &annotation, resource_id, annotation_stats, &mut seen.annotations).await {
+                Some(id) => id,
+                None => continue,
+            };
+
+        sync_annotation_comments(lib, research_conn, &annotation, annotation_id, comment_stats, &mut seen.comments)
+            .await;
+    }
+}
+
+async fn sync_annotation(
+    lib: &Commonplace<'_>,
+    annotation: &ResearchAnnotation,
+    resource_id: i32,
+    stats: &mut SyncStats,
+    seen: &mut HashSet<String>,
+) -> Option<i32> {
+    let external_id = format!("research:{}", annotation.id);
+    let content_hash = compute_annotation_hash(&annotation.text, annotation.color.as_deref());
+    seen.insert(external_id.clone());
+
+    let boundary = serde_json::json!({
+        "pageNumber": annotation.page_number,
+        "position": annotation.position,
+        "source": "research",
+    });
+
+    upsert_annotation(lib, &external_id, annotation, resource_id, &content_hash, boundary)
+        .await
+        .record(stats)
+}
+
+async fn upsert_annotation(
+    lib: &Commonplace<'_>,
+    external_id: &str,
+    annotation: &ResearchAnnotation,
+    resource_id: i32,
+    content_hash: &str,
+    boundary: serde_json::Value,
+) -> SyncResult<i32> {
+    let existing = match lib.find_annotation_by_external_id(external_id).await {
+        Ok(a) => a,
+        Err(e) => {
+            log_find_error("annotation", external_id, e);
+            return SyncResult::Error;
+        }
+    };
+
+    let Some(ann) = existing else {
+        return create_annotation(lib, external_id, annotation, resource_id, content_hash, boundary).await;
+    };
+
+    if is_unchanged(&ann, content_hash) {
+        return SyncResult::Unchanged(ann.id);
+    }
+
+    update_annotation(lib, external_id, ann.id, annotation, content_hash, boundary).await
+}
+
+async fn create_annotation(
+    lib: &Commonplace<'_>,
+    external_id: &str,
+    annotation: &ResearchAnnotation,
+    resource_id: i32,
+    content_hash: &str,
+    boundary: serde_json::Value,
+) -> SyncResult<i32> {
+    let result = lib
+        .create_annotation(CreateAnnotation {
+            resource_id,
+            text: annotation.text.clone(),
+            color: annotation.color.clone(),
+            boundary: Some(boundary),
+            external_id: Some(external_id.to_string()),
+            content_hash: Some(content_hash.to_string()),
+        })
+        .await;
+
+    handle_create_result(result, |a| a.id, "annotation", external_id)
+}
+
+async fn update_annotation(
+    lib: &Commonplace<'_>,
+    external_id: &str,
+    id: i32,
+    annotation: &ResearchAnnotation,
+    content_hash: &str,
+    boundary: serde_json::Value,
+) -> SyncResult<i32> {
+    let result = lib
+        .update_annotation(
+            id,
+            UpdateAnnotation {
+                text: Some(annotation.text.clone()),
+                color: annotation.color.clone(),
+                boundary: Some(boundary),
+                content_hash: Some(content_hash.to_string()),
+            },
+        )
+        .await;
+
+    handle_update_result(result, id, "annotation", external_id)
+}
+
+async fn sync_annotation_comments(
+    lib: &Commonplace<'_>,
+    research_conn: &Connection,
+    annotation: &ResearchAnnotation,
+    annotation_id: i32,
+    stats: &mut SyncStats,
+    seen: &mut HashSet<String>,
+) {
+    let comments = match fetch_research_comments(research_conn, &annotation.id).await {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::error!("Failed to fetch comments for {}: {}", annotation.id, e);
+            return;
+        }
+    };
+
+    for comment in comments {
+        sync_comment(lib, &comment, annotation_id, stats, seen).await;
+    }
+}
+
+async fn sync_comment(
+    lib: &Commonplace<'_>,
+    comment: &ResearchComment,
+    annotation_id: i32,
+    stats: &mut SyncStats,
+    seen: &mut HashSet<String>,
+) {
+    let external_id = format!("research:{}", comment.id);
+    let content_hash = compute_comment_hash(&comment.content);
+    seen.insert(external_id.clone());
+
+    upsert_comment(lib, &external_id, &comment.content, annotation_id, &content_hash)
+        .await
+        .record_unit(stats);
+}
+
+async fn upsert_comment(
+    lib: &Commonplace<'_>,
+    external_id: &str,
+    content: &str,
+    annotation_id: i32,
+    content_hash: &str,
+) -> SyncResult<()> {
+    let existing = match lib.find_comment_by_external_id(external_id).await {
+        Ok(c) => c,
+        Err(e) => {
+            log_find_error("comment", external_id, e);
+            return SyncResult::Error;
+        }
+    };
+
+    let Some(cmt) = existing else {
+        return create_comment(lib, external_id, content, annotation_id, content_hash).await;
+    };
+
+    if is_unchanged(&cmt, content_hash) {
+        return SyncResult::Unchanged(());
+    }
+
+    update_comment(lib, external_id, cmt.id, content, content_hash).await
+}
+
+async fn create_comment(
+    lib: &Commonplace<'_>,
+    external_id: &str,
+    content: &str,
+    annotation_id: i32,
+    content_hash: &str,
+) -> SyncResult<()> {
+    let result = lib
+        .create_comment(CreateComment {
+            annotation_id,
+            content: content.to_string(),
+            external_id: Some(external_id.to_string()),
+            content_hash: Some(content_hash.to_string()),
+        })
+        .await;
+
+    handle_create_result_unit(result, "comment", external_id)
+}
+
+async fn update_comment(
+    lib: &Commonplace<'_>,
+    external_id: &str,
+    id: i32,
+    content: &str,
+    content_hash: &str,
+) -> SyncResult<()> {
+    let result = lib
+        .update_comment(
+            id,
+            UpdateComment {
+                content: content.to_string(),
+                content_hash: Some(content_hash.to_string()),
+            },
+        )
+        .await;
+
+    handle_update_result_unit(result, id, "comment", external_id)
+}
+
+async fn sync_item_notes(
+    lib: &Commonplace<'_>,
+    research_conn: &Connection,
+    item: &ResearchItem,
+    resource_id: i32,
+    stats: &mut SyncStats,
+    seen: &mut HashSet<String>,
+) {
+    let notes = match fetch_research_notes(research_conn, &item.id).await {
+        Ok(n) => n,
+        Err(e) => {
+            tracing::error!("Failed to fetch notes for {}: {}", item.id, e);
+            return;
+        }
+    };
+
+    for note in notes {
+        sync_note(lib, &note, resource_id, stats, seen).await;
+    }
+}
+
+async fn sync_note(
+    lib: &Commonplace<'_>,
+    note: &ResearchNote,
+    resource_id: i32,
+    stats: &mut SyncStats,
+    seen: &mut HashSet<String>,
+) {
+    let external_id = format!("research:{}", note.id);
+    let content_hash = compute_note_hash(&note.content);
+    seen.insert(external_id.clone());
+
+    upsert_note(lib, &external_id, &note.content, resource_id, &content_hash)
+        .await
+        .record_unit(stats);
+}
+
+async fn upsert_note(
+    lib: &Commonplace<'_>,
+    external_id: &str,
+    content: &str,
+    resource_id: i32,
+    content_hash: &str,
+) -> SyncResult<()> {
+    let existing = match lib.find_note_by_external_id(external_id).await {
+        Ok(n) => n,
+        Err(e) => {
+            log_find_error("note", external_id, e);
+            return SyncResult::Error;
+        }
+    };
+
+    let Some(n) = existing else {
+        return create_note(lib, external_id, content, resource_id, content_hash).await;
+    };
+
+    if is_unchanged(&n, content_hash) {
+        return SyncResult::Unchanged(());
+    }
+
+    update_note(lib, external_id, n.id, content, content_hash).await
+}
+
+async fn create_note(
+    lib: &Commonplace<'_>,
+    external_id: &str,
+    content: &str,
+    resource_id: i32,
+    content_hash: &str,
+) -> SyncResult<()> {
+    let result = lib
+        .create_note(CreateNote {
+            resource_id,
+            content: content.to_string(),
+            external_id: Some(external_id.to_string()),
+            content_hash: Some(content_hash.to_string()),
+        })
+        .await;
+
+    handle_create_result_unit(result, "note", external_id)
+}
+
+async fn update_note(
+    lib: &Commonplace<'_>,
+    external_id: &str,
+    id: i32,
+    content: &str,
+    content_hash: &str,
+) -> SyncResult<()> {
+    let result = lib
+        .update_note(
+            id,
+            UpdateNote {
+                content: content.to_string(),
+                content_hash: Some(content_hash.to_string()),
+            },
+        )
+        .await;
+
+    handle_update_result_unit(result, id, "note", external_id)
+}
+
+async fn soft_delete_orphans(
+    lib: &Commonplace<'_>,
+    seen: &SeenIds,
+    resource_stats: &mut SyncStats,
+    annotation_stats: &mut SyncStats,
+    comment_stats: &mut SyncStats,
+    note_stats: &mut SyncStats,
+) {
+    delete_orphans(
+        || lib.find_comments_by_source_prefix("research"),
+        |id| lib.soft_delete_comment(id),
+        &seen.comments,
+        comment_stats,
+        "comment",
+    )
+    .await;
+
+    delete_orphans(
+        || lib.find_annotations_by_source_prefix("research", None),
+        |id| lib.soft_delete_annotation(id),
+        &seen.annotations,
+        annotation_stats,
+        "annotation",
+    )
+    .await;
+
+    delete_orphans(
+        || lib.find_notes_by_source_prefix("research"),
+        |id| lib.soft_delete_note(id),
+        &seen.notes,
+        note_stats,
+        "note",
+    )
+    .await;
+
+    delete_orphans(
+        || lib.find_resources_by_source_prefix("research"),
+        |id| lib.soft_delete_resource(id),
+        &seen.resources,
+        resource_stats,
+        "resource",
+    )
+    .await;
+}
+
 async fn fetch_research_items(conn: &Connection) -> anyhow::Result<Vec<ResearchItem>> {
-    let query = r#"
+    let query_with_filter = r#"
         SELECT id, title
         FROM items 
         WHERE deleted_at IS NULL
     "#;
 
-    let mut rows = conn.query(query, ()).await?;
+    let query_no_filter = r#"
+        SELECT id, title
+        FROM items
+    "#;
+
+    let mut rows = match conn.query(query_with_filter, ()).await {
+        Ok(rows) => rows,
+        Err(_) => conn.query(query_no_filter, ()).await?,
+    };
+
     let mut items = Vec::new();
 
     while let Some(row) = rows.next().await? {
@@ -426,10 +784,7 @@ async fn fetch_research_items(conn: &Connection) -> anyhow::Result<Vec<ResearchI
     Ok(items)
 }
 
-async fn fetch_research_annotations(
-    conn: &Connection,
-    item_id: &str,
-) -> anyhow::Result<Vec<ResearchAnnotation>> {
+async fn fetch_research_annotations(conn: &Connection, item_id: &str) -> anyhow::Result<Vec<ResearchAnnotation>> {
     let query = r#"
         SELECT 
             id,
@@ -457,10 +812,7 @@ async fn fetch_research_annotations(
     Ok(annotations)
 }
 
-async fn fetch_research_comments(
-    conn: &Connection,
-    annotation_id: &str,
-) -> anyhow::Result<Vec<ResearchComment>> {
+async fn fetch_research_comments(conn: &Connection, annotation_id: &str) -> anyhow::Result<Vec<ResearchComment>> {
     let query = r#"
         SELECT id, content
         FROM comments 
@@ -480,10 +832,7 @@ async fn fetch_research_comments(
     Ok(comments)
 }
 
-async fn fetch_research_notes(
-    conn: &Connection,
-    item_id: &str,
-) -> anyhow::Result<Vec<ResearchNote>> {
+async fn fetch_research_notes(conn: &Connection, item_id: &str) -> anyhow::Result<Vec<ResearchNote>> {
     let query = r#"
         SELECT id, content
         FROM notes 

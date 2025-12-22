@@ -8,8 +8,8 @@ use axum::{
 use bibliotek::commonplace;
 use bibliotek::db::Database;
 use bibliotek::handler::{
-    AppState, create_author, create_category, create_tag, get_books, get_metadata, healthcheck,
-    serve_index, update_book, upload,
+    AppState, create_author, create_category, create_tag, get_books, get_metadata, healthcheck, serve_index,
+    update_book, upload,
 };
 use bibliotek::light;
 use bibliotek::research;
@@ -73,12 +73,10 @@ async fn main() {
         .layer(cors)
         .with_state(AppState { db, s3 });
 
-    let listener = tokio::net::TcpListener::bind(&address)
-        .await
-        .unwrap_or_else(|e| {
-            tracing::error!(error = %e, "failed to setup tcp listener");
-            std::process::exit(1);
-        });
+    let listener = tokio::net::TcpListener::bind(&address).await.unwrap_or_else(|e| {
+        tracing::error!(error = %e, "failed to setup tcp listener");
+        std::process::exit(1);
+    });
 
     tracing::info!("bibliotek.svc running on {}", &address);
     tokio::select! {

@@ -59,8 +59,7 @@ fn parse_pdf_date(pdf_date: &str) -> Option<String> {
         if date_str.len() >= *required_len {
             let slice = &date_str[..*required_len];
             let dt_result = if *format == "%Y%m%d" {
-                chrono::NaiveDate::parse_from_str(slice, "%Y%m%d")
-                    .map(|d| d.and_hms_opt(0, 0, 0).unwrap())
+                chrono::NaiveDate::parse_from_str(slice, "%Y%m%d").map(|d| d.and_hms_opt(0, 0, 0).unwrap())
             } else {
                 NaiveDateTime::parse_from_str(slice, format)
             };
@@ -76,8 +75,7 @@ fn parse_pdf_date(pdf_date: &str) -> Option<String> {
 }
 
 fn extract_metadata(path: &Path) -> Result<PdfMetadata> {
-    let doc = lopdf::Document::load(path)
-        .with_context(|| format!("Failed to load PDF: {}", path.display()))?;
+    let doc = lopdf::Document::load(path).with_context(|| format!("Failed to load PDF: {}", path.display()))?;
 
     let mut metadata = PdfMetadata {
         filename: path
@@ -175,21 +173,12 @@ mod tests {
 
     #[test]
     fn test_parse_pdf_date() {
-        assert_eq!(
-            parse_pdf_date("D:20231025143022"),
-            Some("2023-10-25 14:30:22 UTC".to_string())
-        );
+        assert_eq!(parse_pdf_date("D:20231025143022"), Some("2023-10-25 14:30:22 UTC".to_string()));
 
-        assert_eq!(
-            parse_pdf_date("D:20231025"),
-            Some("2023-10-25 00:00:00 UTC".to_string())
-        );
+        assert_eq!(parse_pdf_date("D:20231025"), Some("2023-10-25 00:00:00 UTC".to_string()));
 
         assert_eq!(parse_pdf_date(""), None);
 
-        assert_eq!(
-            parse_pdf_date("invalid_date"),
-            Some("invalid_date".to_string())
-        );
+        assert_eq!(parse_pdf_date("invalid_date"), Some("invalid_date".to_string()));
     }
 }
