@@ -1,5 +1,6 @@
 use anyhow::Result;
 use libsql::Connection;
+use libsql::params::IntoParams;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use sha2::{Digest, Sha256};
@@ -284,14 +285,8 @@ impl<'a> Commonplace<'a> {
             SELECT id, title, type, external_id, content_hash, deleted_at, created_at, updated_at
             FROM resources WHERE id = ? AND deleted_at IS NULL
         "#;
-
-        let mut rows = self.conn.query(query, libsql::params![id]).await?;
-
-        if let Some(row) = rows.next().await? {
-            Ok(Some(self.row_to_resource(&row)?))
-        } else {
-            Ok(None)
-        }
+        self.query_one(query, libsql::params![id], |row| self.row_to_resource(row))
+            .await
     }
 
     pub async fn find_resource_by_title(&self, title: &str) -> Result<Option<Resource>> {
@@ -299,14 +294,8 @@ impl<'a> Commonplace<'a> {
             SELECT id, title, type, external_id, content_hash, deleted_at, created_at, updated_at
             FROM resources WHERE title = ? AND deleted_at IS NULL
         "#;
-
-        let mut rows = self.conn.query(query, libsql::params![title]).await?;
-
-        if let Some(row) = rows.next().await? {
-            Ok(Some(self.row_to_resource(&row)?))
-        } else {
-            Ok(None)
-        }
+        self.query_one(query, libsql::params![title], |row| self.row_to_resource(row))
+            .await
     }
 
     pub async fn find_resource_by_external_id(&self, external_id: &str) -> Result<Option<Resource>> {
@@ -314,14 +303,8 @@ impl<'a> Commonplace<'a> {
             SELECT id, title, type, external_id, content_hash, deleted_at, created_at, updated_at
             FROM resources WHERE external_id = ? AND deleted_at IS NULL
         "#;
-
-        let mut rows = self.conn.query(query, libsql::params![external_id]).await?;
-
-        if let Some(row) = rows.next().await? {
-            Ok(Some(self.row_to_resource(&row)?))
-        } else {
-            Ok(None)
-        }
+        self.query_one(query, libsql::params![external_id], |row| self.row_to_resource(row))
+            .await
     }
 
     pub async fn find_resources_by_source_prefix(&self, prefix: &str) -> Result<Vec<Resource>> {
@@ -434,6 +417,17 @@ impl<'a> Commonplace<'a> {
             created_at: row.get(6)?,
             updated_at: row.get(7)?,
         })
+    }
+
+    async fn query_one<T, F>(&self, query: &str, params: impl IntoParams, map_row: F) -> Result<Option<T>>
+    where
+        F: FnOnce(&libsql::Row) -> Result<T>,
+    {
+        let mut rows = self.conn.query(query, params).await?;
+        match rows.next().await? {
+            Some(row) => Ok(Some(map_row(&row)?)),
+            None => Ok(None),
+        }
     }
 
     pub async fn soft_delete_resource(&self, id: i32) -> Result<bool> {
