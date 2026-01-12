@@ -16,13 +16,33 @@
   <div class="container">
     <nav class="barlow-semibold">
       <h1>&#x1F43D; LIGHT</h1>
-      <div>
-        <button id="toggle" class="barlow-regular">Toggle</button>
-        <button id="export" class="barlow-regular">Export</button>
-        <button id="sync" class="barlow-regular">Sync</button>
-      </div>
     </nav>
+    <div class="toolbar">
+      <button id="toggle" class="toolbar-btn barlow-regular">
+        <span class="toolbar-icon">&#x1F441;</span>
+        <span class="toolbar-label">Toggle</span>
+      </button>
+      <button id="import" class="toolbar-btn barlow-regular">
+        <span class="toolbar-icon">&#x1F4E5;</span>
+        <span class="toolbar-label">Import</span>
+      </button>
+      <button id="export" class="toolbar-btn barlow-regular">
+        <span class="toolbar-icon">&#x1F4E4;</span>
+        <span class="toolbar-label">Export</span>
+      </button>
+      <button id="sync" class="toolbar-btn barlow-regular">
+        <span class="toolbar-icon">&#x1F504;</span>
+        <span class="toolbar-label">Sync</span>
+      </button>
+    </div>
     <div id="sync-status" class="sync-status barlow-regular" style="display: none;"></div>
+    <div id="import-container" style="display: none;">
+      <textarea id="import-input" class="barlow-regular" placeholder="Paste exported JSON here..."></textarea>
+      <div id="import-actions">
+        <button id="import-cancel" class="barlow-regular">Cancel</button>
+        <button id="import-confirm" class="barlow-regular">Confirm</button>
+      </div>
+    </div>
     <div id="stats" class="barlow-semibold">
       <div class="stat">
         <p class="stat-desc">WEBSITES</p>

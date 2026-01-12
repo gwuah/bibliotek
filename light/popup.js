@@ -32,6 +32,75 @@ exportBtn.addEventListener("click", () => {
   });
 });
 
+const importBtn = document.getElementById("import");
+const importContainer = document.getElementById("import-container");
+const importInput = document.getElementById("import-input");
+const importCancel = document.getElementById("import-cancel");
+const importConfirm = document.getElementById("import-confirm");
+
+importBtn.addEventListener("click", () => {
+  importContainer.style.display = importContainer.style.display === "none" ? "block" : "none";
+  importInput.value = "";
+});
+
+importCancel.addEventListener("click", () => {
+  importContainer.style.display = "none";
+  importInput.value = "";
+});
+
+importConfirm.addEventListener("click", () => {
+  const jsonText = importInput.value.trim();
+  if (!jsonText) {
+    showSyncStatus("No JSON provided", "error");
+    setTimeout(hideSyncStatus, 2000);
+    return;
+  }
+
+  let imported;
+  try {
+    imported = JSON.parse(jsonText);
+  } catch (e) {
+    showSyncStatus("Invalid JSON", "error");
+    setTimeout(hideSyncStatus, 2000);
+    return;
+  }
+
+  if (typeof imported !== "object" || Array.isArray(imported)) {
+    showSyncStatus("JSON must be an object", "error");
+    setTimeout(hideSyncStatus, 2000);
+    return;
+  }
+
+  chrome.storage.local.get({ highlights: {} }, (data) => {
+    const existing = data.highlights;
+    let added = 0;
+
+    for (const [url, highlights] of Object.entries(imported)) {
+      if (!Array.isArray(highlights)) continue;
+
+      if (!existing[url]) {
+        existing[url] = [];
+      }
+
+      const existingIds = new Set(existing[url].map((h) => h.groupID));
+      for (const h of highlights) {
+        if (h.groupID && !existingIds.has(h.groupID)) {
+          existing[url].push(h);
+          added++;
+        }
+      }
+    }
+
+    chrome.storage.local.set({ highlights: existing }, () => {
+      importContainer.style.display = "none";
+      importInput.value = "";
+      showSyncStatus(`Imported ${added} highlights`, "success");
+      setTimeout(hideSyncStatus, 2000);
+      loadAndRenderHighlights();
+    });
+  });
+});
+
 const syncBtn = document.getElementById("sync");
 syncBtn.addEventListener("click", () => {
   syncToCommonplace();
@@ -54,8 +123,17 @@ async function syncToCommonplace() {
 
   showSyncStatus("Syncing...", "syncing");
 
-  chrome.storage.local.get({ highlights: {} }, async (data) => {
+  chrome.storage.local.get({ highlights: {}, sourceId: null }, async (data) => {
     const highlights = data.highlights;
+    let sourceId = data.sourceId;
+
+    // Generate sourceId if it doesn't exist (for existing installations)
+    if (!sourceId) {
+      sourceId = crypto.randomUUID();
+      chrome.storage.local.set({ sourceId });
+    }
+
+    const source = `light_${sourceId}`;
 
     if (Object.keys(highlights).length === 0) {
       showSyncStatus("No highlights to sync", "error");
@@ -69,7 +147,7 @@ async function syncToCommonplace() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ source: "light", highlights }),
+        body: JSON.stringify({ source, highlights }),
       });
 
       console.log("Response from sync:", response);
