@@ -777,7 +777,7 @@ async fn fetch_research_items(conn: &Connection) -> anyhow::Result<Vec<ResearchI
     while let Some(row) = rows.next().await? {
         items.push(ResearchItem {
             id: row.get(0)?,
-            title: row.get(1)?,
+            title: row.get::<Option<String>>(1)?.unwrap_or_default(),
         });
     }
 
@@ -825,7 +825,7 @@ async fn fetch_research_comments(conn: &Connection, annotation_id: &str) -> anyh
     while let Some(row) = rows.next().await? {
         comments.push(ResearchComment {
             id: row.get(0)?,
-            content: row.get(1)?,
+            content: row.get::<Option<String>>(1)?.unwrap_or_default(),
         });
     }
 
@@ -845,7 +845,7 @@ async fn fetch_research_notes(conn: &Connection, item_id: &str) -> anyhow::Resul
     while let Some(row) = rows.next().await? {
         notes.push(ResearchNote {
             id: row.get(0)?,
-            content: row.get(1)?,
+            content: row.get::<Option<String>>(1)?.unwrap_or_default(),
         });
     }
 
