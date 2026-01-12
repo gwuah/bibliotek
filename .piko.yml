@@ -7,5 +7,5 @@ scripts:
   run: |
     export PORT=$((5678 + PIKO_ENV_ID))
     export API_PORT=$PORT
-    cargo run -- --config config.yaml &
+    cargo run --bin bibliotek -- -c config.yaml &
     cd web && npm run dev
