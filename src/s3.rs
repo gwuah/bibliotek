@@ -67,9 +67,7 @@ impl ObjectStorage {
             .lock()
             .map_err(|e| ObjectStorageError::LockError(e.to_string()))?;
 
-        let upload_id = response
-            .upload_id
-            .ok_or(ObjectStorageError::UploadIdMissing)?;
+        let upload_id = response.upload_id.ok_or(ObjectStorageError::UploadIdMissing)?;
 
         if sessions.contains_key(&upload_id) {
             return Err(ObjectStorageError::SessionAlreadyExists(upload_id));
@@ -87,12 +85,7 @@ impl ObjectStorage {
         Ok(upload_id)
     }
 
-    pub async fn upload(
-        &self,
-        upload_id: &str,
-        data: Vec<u8>,
-        part_number: i32,
-    ) -> Result<String, ObjectStorageError> {
+    pub async fn upload(&self, upload_id: &str, data: Vec<u8>, part_number: i32) -> Result<String, ObjectStorageError> {
         let (session_key, session_parts) = {
             let sessions = self
                 .sessions
@@ -127,10 +120,7 @@ impl ObjectStorage {
 
         let etag = response.e_tag.ok_or(ObjectStorageError::ETagMissing)?;
 
-        let completed_part = CompletedPart::builder()
-            .part_number(part_number)
-            .e_tag(&etag)
-            .build();
+        let completed_part = CompletedPart::builder().part_number(part_number).e_tag(&etag).build();
 
         let mut parts = session_parts
             .lock()
@@ -180,9 +170,7 @@ impl ObjectStorage {
             .as_slice()
             .to_vec();
 
-        let completed_upload = CompletedMultipartUpload::builder()
-            .set_parts(Some(parts))
-            .build();
+        let completed_upload = CompletedMultipartUpload::builder().set_parts(Some(parts)).build();
 
         let response = self
             .client

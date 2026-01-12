@@ -45,11 +45,7 @@ pub struct HandlerParams {
 impl QueryParams {
     pub fn into_handler_params(self) -> HandlerParams {
         let page = self.page.unwrap_or(DEFAULT_PAGE).max(1);
-        let limit = self
-            .limit
-            .unwrap_or(DEFAULT_LIMIT)
-            .max(1)
-            .min(DEFAULT_LIMIT);
+        let limit = self.limit.unwrap_or(DEFAULT_LIMIT).max(1).min(DEFAULT_LIMIT);
 
         HandlerParams {
             query: self.q,
@@ -149,19 +145,13 @@ async fn extract_form(multipart: &mut Multipart) -> Result<Form, HandlerError> {
     Ok(form)
 }
 
-async fn handle_init_upload(
-    state: &AppState,
-    multipart: &mut Multipart,
-) -> Result<String, HandlerError> {
+async fn handle_init_upload(state: &AppState, multipart: &mut Multipart) -> Result<String, HandlerError> {
     let form = extract_form(multipart).await?;
     let response = state.s3.start_upload(form.file_name.as_str()).await?;
     Ok(response)
 }
 
-async fn handle_continue_upload(
-    state: &AppState,
-    multipart: &mut Multipart,
-) -> Result<String, HandlerError> {
+async fn handle_continue_upload(state: &AppState, multipart: &mut Multipart) -> Result<String, HandlerError> {
     let form = extract_form(multipart).await?;
 
     let response = state
@@ -189,9 +179,7 @@ pub async fn upload(
             Ok(upload_id) => upload_id,
             Err(e) => {
                 tracing::error!("failed to initialize upload: {}", e);
-                return crate::server_error(APIResponse::new_from_msg(
-                    "failed to initialize upload",
-                ));
+                return crate::server_error(APIResponse::new_from_msg("failed to initialize upload"));
             }
         };
 
@@ -272,10 +260,9 @@ pub async fn upload(
                     };
 
                     let mut category_names = vec![];
-                    if let Some(category) = infer_category_from_metadata(
-                        pdf_metadata.subject.as_deref(),
-                        pdf_metadata.keywords.as_deref(),
-                    ) {
+                    if let Some(category) =
+                        infer_category_from_metadata(pdf_metadata.subject.as_deref(), pdf_metadata.keywords.as_deref())
+                    {
                         category_names.push(category);
                     }
 
@@ -286,11 +273,7 @@ pub async fn upload(
                         } else {
                             name
                         };
-                        without_ext
-                            .replace('_', " ")
-                            .replace('-', " ")
-                            .trim()
-                            .to_string()
+                        without_ext.replace('_', " ").replace('-', " ").trim().to_string()
                     });
 
                     match state
@@ -348,11 +331,7 @@ pub async fn upload(
         return crate::good_response(response);
     }
 
-    (
-        StatusCode::OK,
-        Json(APIResponse::new_from_msg("Files uploaded successfully")),
-    )
-        .into_response()
+    (StatusCode::OK, Json(APIResponse::new_from_msg("Files uploaded successfully"))).into_response()
 }
 
 pub async fn show_form() -> Html<&'static str> {
@@ -393,13 +372,7 @@ pub async fn update_book(
 ) -> Response {
     match state
         .db
-        .update_book(
-            book_id,
-            &payload.title,
-            &payload.author_ids,
-            &payload.tag_ids,
-            &payload.category_ids,
-        )
+        .update_book(book_id, &payload.title, &payload.author_ids, &payload.tag_ids, &payload.category_ids)
         .await
     {
         Ok(_) => match state.db.get_book_by_id(book_id).await {
@@ -422,14 +395,9 @@ pub async fn update_book(
     }
 }
 
-pub async fn create_author(
-    State(state): State<AppState>,
-    Json(payload): Json<CreateEntityRequest>,
-) -> Response {
+pub async fn create_author(State(state): State<AppState>, Json(payload): Json<CreateEntityRequest>) -> Response {
     match state.db.create_author(&payload.name).await {
-        Ok(author) => {
-            (StatusCode::CREATED, Json(EntityResponse { entity: author })).into_response()
-        }
+        Ok(author) => (StatusCode::CREATED, Json(EntityResponse { entity: author })).into_response(),
         Err(e) => {
             tracing::error!("failed to create author: {}", e);
             crate::bad_request(APIResponse::new_from_msg("failed to create author"))
@@ -437,10 +405,7 @@ pub async fn create_author(
     }
 }
 
-pub async fn create_tag(
-    State(state): State<AppState>,
-    Json(payload): Json<CreateEntityRequest>,
-) -> Response {
+pub async fn create_tag(State(state): State<AppState>, Json(payload): Json<CreateEntityRequest>) -> Response {
     match state.db.create_tag(&payload.name).await {
         Ok(tag) => (StatusCode::CREATED, Json(EntityResponse { entity: tag })).into_response(),
         Err(e) => {
@@ -450,16 +415,9 @@ pub async fn create_tag(
     }
 }
 
-pub async fn create_category(
-    State(state): State<AppState>,
-    Json(payload): Json<CreateEntityRequest>,
-) -> Response {
+pub async fn create_category(State(state): State<AppState>, Json(payload): Json<CreateEntityRequest>) -> Response {
     match state.db.create_category(&payload.name).await {
-        Ok(category) => (
-            StatusCode::CREATED,
-            Json(EntityResponse { entity: category }),
-        )
-            .into_response(),
+        Ok(category) => (StatusCode::CREATED, Json(EntityResponse { entity: category })).into_response(),
         Err(e) => {
             tracing::error!("failed to create category: {}", e);
             crate::bad_request(APIResponse::new_from_msg("failed to create category"))
