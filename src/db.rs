@@ -84,7 +84,8 @@ impl Database {
     }
 
     pub async fn new(cfg: &Config) -> Result<Self> {
-        let path = Path::new(&get_home_dir()?).join(cfg.app.get_db());
+        let base_dir = env::var("PIKO_DATA_DIR").unwrap_or_else(|_| get_home_dir().unwrap());
+        let path = Path::new(&base_dir).join(cfg.app.get_db());
         let conn = Builder::new_local(path).build().await?.connect()?;
         let _ = conn
             .query("SELECT 1", ())

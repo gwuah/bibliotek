@@ -2,8 +2,9 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 // API proxy config - only proxy fetch/XHR requests, not page navigation
+const apiPort = process.env.API_PORT || 5678;
 const apiProxy = {
-  target: "http://localhost:5678",
+  target: `http://localhost:${apiPort}`,
   changeOrigin: true,
   // Only proxy if it's an API request (not a page navigation)
   bypass: (req) => {

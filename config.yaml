@@ -2,7 +2,7 @@ app:
   database: bibliotek.db
   bucket: bibliotek-test
   schema: schema.sql
-  port: 5678
+  port: ${PORT:-5678}
 
 storage:
   aws_access_key_id: ${AWS_ACCESS_KEY_ID}

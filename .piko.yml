@@ -1,0 +1,11 @@
+scripts:
+  setup: |
+    ln -sf "$PIKO_ROOT/.env" .env
+    cargo build
+    cd web && npm install
+
+  run: |
+    export PORT=$((5678 + PIKO_ENV_ID))
+    export API_PORT=$PORT
+    cargo run -- --config config.yaml &
+    cd web && npm run dev
