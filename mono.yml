@@ -1,0 +1,16 @@
+scripts:
+  init: |
+    cargo build
+    cd web && npm install
+
+  setup: |
+    ln -sf "$MONO_ROOT_PATH/.env" "$MONO_ENV_PATH/.env"
+
+  run: |
+    export PORT=$((5678 + MONO_ENV_ID))
+    export API_PORT=$PORT
+    cargo run --bin bibliotek -- -c config.yaml &
+    cd web && npm run dev
+
+  destroy: |
+    echo "cleaning up bibliotek"
