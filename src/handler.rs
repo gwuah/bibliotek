@@ -319,8 +319,30 @@ pub async fn upload(
                     }
                 }
                 Err(e) => {
-                    tracing::warn!("Failed to extract PDF metadata: {}", e);
-                    book_creation_error = Some(format!("Failed to extract PDF metadata: {}", e));
+                    tracing::warn!("Failed to extract PDF metadata, using filename as title: {}", e);
+                    let title = {
+                        let without_ext = if let Some(dot_pos) = file_name.rfind('.') {
+                            &file_name[..dot_pos]
+                        } else {
+                            &file_name
+                        };
+                        without_ext.replace('_', " ").replace('-', " ").trim().to_string()
+                    };
+
+                    match state
+                        .db
+                        .create_book(&title, &expected_url, None, None, None, None, &[], &[], &[], "pending")
+                        .await
+                    {
+                        Ok(book_id) => {
+                            tracing::info!("Created pending book with ID: {} (metadata extraction failed)", book_id);
+                            pending_book_id = Some(book_id);
+                        }
+                        Err(e) => {
+                            tracing::error!("Failed to create book record: {}", e);
+                            book_creation_error = Some(e.to_string());
+                        }
+                    }
                 }
             }
         } else {
