@@ -233,9 +233,17 @@ pub async fn upload(
             }
         };
 
+        let file_name = match state.s3.get_session_key(&form.upload_id) {
+            Ok(key) => key,
+            Err(e) => {
+                tracing::error!("failed to get session key: {}", e);
+                return crate::server_error(APIResponse::new_from_msg("failed to get upload session"));
+            }
+        };
+
         // Extract metadata and create book with 'pending' status BEFORE completing S3
         let mut pending_book_id: Option<i32> = None;
-        let mut title = String::new();
+        let mut book_creation_error: Option<String> = None;
 
         if !chunks.is_empty() {
             match extract_metadata_from_bytes(&chunks).await {
@@ -269,15 +277,19 @@ pub async fn upload(
                         category_names.push(category);
                     }
 
-                    title = pdf_metadata.title.unwrap_or_else(|| {
-                        let name = &form.file_name;
-                        let without_ext = if let Some(dot_pos) = name.rfind('.') {
-                            &name[..dot_pos]
+                    let title_from_filename = || {
+                        let without_ext = if let Some(dot_pos) = file_name.rfind('.') {
+                            &file_name[..dot_pos]
                         } else {
-                            name
+                            &file_name
                         };
                         without_ext.replace('_', " ").replace('-', " ").trim().to_string()
-                    });
+                    };
+
+                    let title = match &pdf_metadata.title {
+                        Some(t) if !t.trim().is_empty() => t.clone(),
+                        _ => title_from_filename(),
+                    };
 
                     // Create book with 'pending' status
                     match state
@@ -302,13 +314,30 @@ pub async fn upload(
                         }
                         Err(e) => {
                             tracing::error!("Failed to create book record: {}", e);
+                            book_creation_error = Some(e.to_string());
                         }
                     }
                 }
                 Err(e) => {
                     tracing::warn!("Failed to extract PDF metadata: {}", e);
+                    book_creation_error = Some(format!("Failed to extract PDF metadata: {}", e));
                 }
             }
+        } else {
+            tracing::error!("No chunks available for upload {} - upload may be corrupted", form.upload_id);
+            if let Err(e) = state.s3.abort_upload(&form.upload_id).await {
+                tracing::warn!("Failed to abort upload: {}", e);
+            }
+            return crate::server_error(APIResponse::new_from_msg("Upload failed: no file data received"));
+        }
+
+        // If book creation failed, abort the S3 upload and return error
+        if let Some(error_msg) = book_creation_error {
+            // Abort the multipart upload to avoid orphaned S3 files
+            if let Err(e) = state.s3.abort_upload(&form.upload_id).await {
+                tracing::warn!("Failed to abort upload after book creation error: {}", e);
+            }
+            return crate::server_error(APIResponse::new_from_msg(&format!("Failed to create book: {}", error_msg)));
         }
 
         // Now complete the S3 upload

@@ -5,6 +5,7 @@ use anyhow::Result;
 use libsql::{Builder, Connection};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use tokio::sync::Mutex;
 
 use std::env;
 
@@ -27,6 +28,7 @@ pub struct MetadataAggregate {
 
 pub struct Database {
     conn: Connection,
+    tx_lock: Mutex<()>,
 }
 
 fn get_home_dir() -> Result<String> {
@@ -112,7 +114,10 @@ impl Database {
 
         tracing::info!("db migrations complete");
 
-        let instance = Database { conn };
+        let instance = Database {
+            conn,
+            tx_lock: Mutex::new(()),
+        };
 
         Ok(instance)
     }
@@ -432,6 +437,8 @@ GROUP BY books.id, books.title, books.url, books.cover_url, books.ratings
         category_names: &[String],
         status: &str,
     ) -> Result<i32> {
+        let _guard = self.tx_lock.lock().await;
+
         self.conn.execute("BEGIN TRANSACTION", ()).await?;
 
         let result = self
@@ -524,6 +531,8 @@ GROUP BY books.id, books.title, books.url, books.cover_url, books.ratings
         tag_ids: &[i32],
         category_ids: &[i32],
     ) -> Result<()> {
+        let _guard = self.tx_lock.lock().await;
+
         self.conn.execute("BEGIN TRANSACTION", ()).await?;
 
         let result = self
@@ -661,6 +670,8 @@ GROUP BY books.id, books.title, books.url, books.cover_url, books.ratings
     }
 
     pub async fn delete_book(&self, book_id: i32) -> Result<()> {
+        let _guard = self.tx_lock.lock().await;
+
         self.conn.execute("BEGIN TRANSACTION", ()).await?;
 
         let result = async {

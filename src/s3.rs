@@ -21,6 +21,10 @@ pub struct ObjectStorage {
 }
 
 impl ObjectStorage {
+    fn lock_sessions(&self) -> Result<std::sync::MutexGuard<'_, HashMap<String, UploadSession>>, ObjectStorageError> {
+        self.sessions.lock().map_err(|e| ObjectStorageError::LockError(e.to_string()))
+    }
+
     pub async fn new(cfg: &Config) -> Result<Self, ObjectStorageError> {
         let region = env::var("AWS_REGION")?;
         let endpoint_url = env::var("AWS_ENDPOINT_URL_S3")?;
@@ -63,11 +67,7 @@ impl ObjectStorage {
             .await
             .map_err(|e| ObjectStorageError::S3Error(Box::new(e)))?;
 
-        let mut sessions = self
-            .sessions
-            .lock()
-            .map_err(|e| ObjectStorageError::LockError(e.to_string()))?;
-
+        let mut sessions = self.lock_sessions()?;
         let upload_id = response.upload_id.ok_or(ObjectStorageError::UploadIdMissing)?;
 
         if sessions.contains_key(&upload_id) {
@@ -89,20 +89,13 @@ impl ObjectStorage {
 
     pub async fn upload(&self, upload_id: &str, data: Vec<u8>, part_number: i32) -> Result<String, ObjectStorageError> {
         let (session_key, session_parts) = {
-            let sessions = self
-                .sessions
-                .lock()
-                .map_err(|e| ObjectStorageError::LockError(e.to_string()))?;
-
+            let sessions = self.lock_sessions()?;
             let session = sessions
                 .get(upload_id)
                 .ok_or(ObjectStorageError::SessionNotFound(upload_id.to_string()))?;
 
-            let mut chunks = session
-                .chunks
-                .lock()
+            let mut chunks = session.chunks.lock()
                 .map_err(|e| ObjectStorageError::LockError(e.to_string()))?;
-
             chunks.extend(data.clone());
 
             (session.key.clone(), session.parts.clone())
@@ -124,8 +117,7 @@ impl ObjectStorage {
 
         let completed_part = CompletedPart::builder().part_number(part_number).e_tag(&etag).build();
 
-        let mut parts = session_parts
-            .lock()
+        let mut parts = session_parts.lock()
             .map_err(|e| ObjectStorageError::LockError(e.to_string()))?;
         parts.push(completed_part);
 
@@ -133,43 +125,50 @@ impl ObjectStorage {
     }
 
     pub async fn get_upload_chunks(&self, upload_id: &str) -> Result<Vec<u8>, ObjectStorageError> {
-        let sessions = self
-            .sessions
-            .lock()
-            .map_err(|e| ObjectStorageError::LockError(e.to_string()))?;
-
+        let sessions = self.lock_sessions()?;
         let session = sessions
             .get(upload_id)
             .ok_or(ObjectStorageError::SessionNotFound(upload_id.to_string()))?;
 
-        let chunks = session
-            .chunks
-            .lock()
+        let chunks = session.chunks.lock()
             .map_err(|e| ObjectStorageError::LockError(e.to_string()))?;
 
         Ok(chunks.clone())
     }
 
     pub fn get_expected_url(&self, upload_id: &str) -> Result<String, ObjectStorageError> {
-        let sessions = self
-            .sessions
-            .lock()
-            .map_err(|e| ObjectStorageError::LockError(e.to_string()))?;
+        let key = self.get_session_key(upload_id)?;
+        Ok(crate::get_s3_url(&self.service, &self.bucket, &key))
+    }
 
+    pub fn get_session_key(&self, upload_id: &str) -> Result<String, ObjectStorageError> {
+        let sessions = self.lock_sessions()?;
         let session = sessions
             .get(upload_id)
             .ok_or(ObjectStorageError::SessionNotFound(upload_id.to_string()))?;
 
-        Ok(crate::get_s3_url(&self.service, &self.bucket, &session.key))
+        Ok(session.key.clone())
+    }
+
+    pub async fn abort_upload(&self, upload_id: &str) -> Result<(), ObjectStorageError> {
+        let key = self.get_session_key(upload_id)?;
+
+        self.client
+            .abort_multipart_upload()
+            .bucket(&self.bucket)
+            .key(&key)
+            .upload_id(upload_id)
+            .send()
+            .await
+            .map_err(|e| ObjectStorageError::S3Error(Box::new(e)))?;
+
+        self.lock_sessions()?.remove(upload_id);
+        Ok(())
     }
 
     pub async fn complete_upload(&self, upload_id: &str) -> Result<String, ObjectStorageError> {
         let (key, locked_parts) = {
-            let sessions = self
-                .sessions
-                .lock()
-                .map_err(|e| ObjectStorageError::LockError(e.to_string()))?;
-
+            let sessions = self.lock_sessions()?;
             let session = sessions
                 .get(upload_id)
                 .ok_or(ObjectStorageError::SessionNotFound(upload_id.to_string()))?;
@@ -179,8 +178,7 @@ impl ObjectStorage {
 
         println!("key: {:?}, upload_id: {:?}", key, upload_id);
 
-        let parts = locked_parts
-            .lock()
+        let parts = locked_parts.lock()
             .map_err(|e| ObjectStorageError::LockError(e.to_string()))?
             .as_slice()
             .to_vec();
@@ -198,12 +196,7 @@ impl ObjectStorage {
             .await
             .map_err(|e| ObjectStorageError::S3Error(Box::new(e)))?;
 
-        let mut sessions = self
-            .sessions
-            .lock()
-            .map_err(|e| ObjectStorageError::LockError(e.to_string()))?;
-
-        sessions.remove(upload_id);
+        self.lock_sessions()?.remove(upload_id);
 
         let location = response.key.unwrap_or(key.to_string());
         let bucket = response.bucket.unwrap_or(self.bucket.clone());
@@ -239,11 +232,7 @@ impl ObjectStorage {
 
     pub async fn cleanup_stale_sessions(&self, max_age_secs: u64) -> Result<usize, ObjectStorageError> {
         let stale_sessions: Vec<(String, String)> = {
-            let sessions = self
-                .sessions
-                .lock()
-                .map_err(|e| ObjectStorageError::LockError(e.to_string()))?;
-
+            let sessions = self.lock_sessions()?;
             let cutoff = std::time::Instant::now() - std::time::Duration::from_secs(max_age_secs);
             sessions
                 .iter()
@@ -269,11 +258,7 @@ impl ObjectStorage {
         }
 
         {
-            let mut sessions = self
-                .sessions
-                .lock()
-                .map_err(|e| ObjectStorageError::LockError(e.to_string()))?;
-
+            let mut sessions = self.lock_sessions()?;
             for (upload_id, _) in &stale_sessions {
                 sessions.remove(upload_id);
             }
