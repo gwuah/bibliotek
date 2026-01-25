@@ -10,6 +10,7 @@ pub struct UploadSession {
     key: String,
     parts: Arc<Mutex<Vec<CompletedPart>>>,
     chunks: Arc<Mutex<Vec<u8>>>,
+    created_at: std::time::Instant,
 }
 
 pub struct ObjectStorage {
@@ -79,6 +80,7 @@ impl ObjectStorage {
                 key: key.to_string(),
                 parts: Arc::new(Mutex::new(Vec::new())),
                 chunks: Arc::new(Mutex::new(Vec::new())),
+                created_at: std::time::Instant::now(),
             },
         );
 
@@ -146,6 +148,19 @@ impl ObjectStorage {
             .map_err(|e| ObjectStorageError::LockError(e.to_string()))?;
 
         Ok(chunks.clone())
+    }
+
+    pub fn get_expected_url(&self, upload_id: &str) -> Result<String, ObjectStorageError> {
+        let sessions = self
+            .sessions
+            .lock()
+            .map_err(|e| ObjectStorageError::LockError(e.to_string()))?;
+
+        let session = sessions
+            .get(upload_id)
+            .ok_or(ObjectStorageError::SessionNotFound(upload_id.to_string()))?;
+
+        Ok(crate::get_s3_url(&self.service, &self.bucket, &session.key))
     }
 
     pub async fn complete_upload(&self, upload_id: &str) -> Result<String, ObjectStorageError> {
@@ -220,5 +235,54 @@ impl ObjectStorage {
         } else {
             None
         }
+    }
+
+    pub async fn cleanup_stale_sessions(&self, max_age_secs: u64) -> Result<usize, ObjectStorageError> {
+        let stale_sessions: Vec<(String, String)> = {
+            let sessions = self
+                .sessions
+                .lock()
+                .map_err(|e| ObjectStorageError::LockError(e.to_string()))?;
+
+            let cutoff = std::time::Instant::now() - std::time::Duration::from_secs(max_age_secs);
+            sessions
+                .iter()
+                .filter(|(_, session)| session.created_at < cutoff)
+                .map(|(upload_id, session)| (upload_id.clone(), session.key.clone()))
+                .collect()
+        };
+
+        let count = stale_sessions.len();
+
+        for (upload_id, key) in &stale_sessions {
+            if let Err(e) = self
+                .client
+                .abort_multipart_upload()
+                .bucket(&self.bucket)
+                .key(key)
+                .upload_id(upload_id)
+                .send()
+                .await
+            {
+                tracing::warn!("Failed to abort stale multipart upload {}: {}", upload_id, e);
+            }
+        }
+
+        {
+            let mut sessions = self
+                .sessions
+                .lock()
+                .map_err(|e| ObjectStorageError::LockError(e.to_string()))?;
+
+            for (upload_id, _) in &stale_sessions {
+                sessions.remove(upload_id);
+            }
+        }
+
+        if count > 0 {
+            tracing::info!("Cleaned up {} stale upload sessions", count);
+        }
+
+        Ok(count)
     }
 }

@@ -50,6 +50,26 @@ async fn main() {
     let cancellation_token = CancellationToken::new();
     let (shutdown_complete_tx, mut shutdown_complete_rx) = mpsc::channel::<()>(1);
 
+    // Background task to clean up stale upload sessions every 5 minutes
+    let cleanup_s3 = s3.clone();
+    let cleanup_token = cancellation_token.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
+        loop {
+            tokio::select! {
+                _ = interval.tick() => {
+                    if let Err(e) = cleanup_s3.cleanup_stale_sessions(1800).await {
+                        tracing::warn!("Failed to cleanup stale sessions: {}", e);
+                    }
+                }
+                _ = cleanup_token.cancelled() => {
+                    tracing::info!("Session cleanup task shutting down");
+                    break;
+                }
+            }
+        }
+    });
+
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])

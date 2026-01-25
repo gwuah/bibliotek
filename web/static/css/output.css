@@ -7,7 +7,11 @@
       "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
       "Courier New", monospace;
+    --color-red-50: oklch(97.1% 0.013 17.38);
+    --color-red-100: oklch(93.6% 0.032 17.717);
+    --color-red-300: oklch(80.8% 0.114 19.571);
     --color-red-500: oklch(63.7% 0.237 25.331);
+    --color-red-700: oklch(50.5% 0.213 27.518);
     --color-amber-100: oklch(96.2% 0.059 95.617);
     --color-green-100: oklch(96.2% 0.044 156.743);
     --color-green-200: oklch(92.5% 0.084 155.995);
@@ -189,6 +193,9 @@
   .static {
     position: static;
   }
+  .mt-2 {
+    margin-top: calc(var(--spacing) * 2);
+  }
   .mr-1 {
     margin-right: calc(var(--spacing) * 1);
   }
@@ -289,6 +296,9 @@
   .border-gray-400 {
     border-color: var(--color-gray-400);
   }
+  .border-red-300 {
+    border-color: var(--color-red-300);
+  }
   .bg-amber-100 {
     background-color: var(--color-amber-100);
   }
@@ -300,6 +310,9 @@
   }
   .bg-green-100 {
     background-color: var(--color-green-100);
+  }
+  .bg-red-50 {
+    background-color: var(--color-red-50);
   }
   .bg-transparent {
     background-color: transparent;
@@ -327,6 +340,9 @@
   }
   .py-1 {
     padding-block: calc(var(--spacing) * 1);
+  }
+  .py-2 {
+    padding-block: calc(var(--spacing) * 2);
   }
   .py-4 {
     padding-block: calc(var(--spacing) * 4);
@@ -362,6 +378,9 @@
   }
   .text-green-700 {
     color: var(--color-green-700);
+  }
+  .text-red-700 {
+    color: var(--color-red-700);
   }
   .opacity-50 {
     opacity: 50%;
@@ -399,6 +418,13 @@
     &:hover {
       @media (hover: hover) {
         background-color: var(--color-green-200);
+      }
+    }
+  }
+  .hover\:bg-red-100 {
+    &:hover {
+      @media (hover: hover) {
+        background-color: var(--color-red-100);
       }
     }
   }
