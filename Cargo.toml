@@ -28,5 +28,7 @@ pdfium-render = "0.8"
 lopdf = "0.33"
 chrono = { version = "0.4", features = ["serde"] }
 sha2 = "0.10"
+rust-embed = "8"
+mime_guess = "2"
 
 

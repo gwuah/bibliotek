@@ -5,6 +5,7 @@ use axum::{
     Router,
     routing::{get, post, put},
 };
+use bibliotek::assets::serve_embedded;
 use bibliotek::commonplace;
 use bibliotek::db::Database;
 use bibliotek::handler::{
@@ -22,7 +23,6 @@ use clap::Parser;
 use tokio::{signal, sync::mpsc};
 use tokio_util::sync::CancellationToken;
 use tower_http::cors::{Any, CorsLayer};
-use tower_http::services::ServeDir;
 use tracing;
 
 #[tokio::main]
@@ -89,7 +89,7 @@ async fn main() {
         .nest("/commonplace", commonplace::routes())
         .nest("/light", light::routes())
         .nest("/research", research::routes())
-        .nest_service("/static", ServeDir::new("web/static"))
+        .fallback(serve_embedded)
         .layer(cors)
         .with_state(AppState { db, s3 });
 
