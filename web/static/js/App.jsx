@@ -19,7 +19,7 @@ function trimTitle(title, maxLength = 80) {
   return capitalized.substring(0, maxLength).trim() + '...'
 }
 
-function MassUploader({ onUploadComplete }) {
+function MassUploader({ onBookCreated }) {
   const [queue, setQueue] = useState([])
   const [isUploading, setIsUploading] = useState(false)
   const fileInputRef = useRef(null)
@@ -94,8 +94,11 @@ function MassUploader({ onUploadComplete }) {
       completeForm.append('upload_id', initData.upload_id)
       const completeRes = await fetch('/upload?state=complete', { method: 'POST', body: completeForm })
       if (!completeRes.ok) throw new Error('Complete request failed')
+      const completeData = await completeRes.json()
       updateEntry({ status: 'completed', progress: 100 })
-      onUploadComplete?.()
+      if (completeData.books?.[0]) {
+        onBookCreated?.(completeData.books[0])
+      }
     } catch (err) {
       updateEntry({ status: 'error' })
     }
@@ -136,6 +139,7 @@ function MassUploader({ onUploadComplete }) {
   }
 
   const hasPending = queue.some(e => e.status === 'pending' || e.status === 'error')
+  const hasErrors = queue.some(e => e.status === 'error')
   const completed = queue.filter(e => e.status === 'completed').length
 
   return (
@@ -191,7 +195,14 @@ function MassUploader({ onUploadComplete }) {
             >
               {isUploading ? 'uploading...' : 'Upload'}
             </button>
-            {/* <span className="upload-summary">{completed}/{queue.length}</span> */}
+            {hasErrors && !isUploading && (
+              <button
+                onClick={startUpload}
+                className="w-full border border-red-300 text-sm py-2 mt-2 cursor-pointer bg-red-50 hover:bg-red-100 text-red-700"
+              >
+                Retry Failed
+              </button>
+            )}
           </div>
         </>
       )}
@@ -562,7 +573,7 @@ function BooksPage() {
   return (
     <div className="flex flex-row gap-10" style={{ alignItems: 'flex-start' }}>
       <div className="w-[280px] flex-shrink-0">
-        <MassUploader onUploadComplete={loadData} />
+        <MassUploader onBookCreated={(book) => setBooks(prev => [book, ...prev])} />
       </div>
       <div className="flex-1 border border-gray-300 overflow-auto">
         <BookList 

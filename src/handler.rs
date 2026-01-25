@@ -225,15 +225,26 @@ pub async fn upload(
             }
         };
 
-        let object_url = match state.s3.complete_upload(&form.upload_id).await {
-            Ok(object_url) => object_url,
+        let expected_url = match state.s3.get_expected_url(&form.upload_id) {
+            Ok(url) => url,
             Err(e) => {
-                tracing::error!("failed to complete upload: {}", e);
-                return crate::server_error(APIResponse::new_from_msg("failed to complete upload"));
+                tracing::error!("failed to get expected URL: {}", e);
+                return crate::server_error(APIResponse::new_from_msg("failed to get upload session"));
             }
         };
 
-        let mut created_book = None;
+        let file_name = match state.s3.get_session_key(&form.upload_id) {
+            Ok(key) => key,
+            Err(e) => {
+                tracing::error!("failed to get session key: {}", e);
+                return crate::server_error(APIResponse::new_from_msg("failed to get upload session"));
+            }
+        };
+
+        // Extract metadata and create book with 'pending' status BEFORE completing S3
+        let mut pending_book_id: Option<i32> = None;
+        let mut book_creation_error: Option<String> = None;
+
         if !chunks.is_empty() {
             match extract_metadata_from_bytes(&chunks).await {
                 Ok(pdf_metadata) => {
@@ -266,21 +277,26 @@ pub async fn upload(
                         category_names.push(category);
                     }
 
-                    let title = pdf_metadata.title.unwrap_or_else(|| {
-                        let name = &form.file_name;
-                        let without_ext = if let Some(dot_pos) = name.rfind('.') {
-                            &name[..dot_pos]
+                    let title_from_filename = || {
+                        let without_ext = if let Some(dot_pos) = file_name.rfind('.') {
+                            &file_name[..dot_pos]
                         } else {
-                            name
+                            &file_name
                         };
                         without_ext.replace('_', " ").replace('-', " ").trim().to_string()
-                    });
+                    };
 
+                    let title = match &pdf_metadata.title {
+                        Some(t) if !t.trim().is_empty() => t.clone(),
+                        _ => title_from_filename(),
+                    };
+
+                    // Create book with 'pending' status
                     match state
                         .db
                         .create_book(
                             &title,
-                            &object_url,
+                            &expected_url,
                             None,
                             pdf_metadata.subject.as_deref(),
                             None,
@@ -288,30 +304,97 @@ pub async fn upload(
                             &author_names,
                             &tag_names,
                             &category_names,
+                            "pending",
                         )
                         .await
                     {
                         Ok(book_id) => {
-                            tracing::info!("Created book with ID: {}", book_id);
-                            match state.db.get_book_by_id(book_id).await {
-                                Ok(Some(book)) => {
-                                    created_book = Some(book);
-                                }
-                                Ok(None) => {
-                                    tracing::warn!("Book {} was created but not found", book_id);
-                                }
-                                Err(e) => {
-                                    tracing::warn!("Failed to fetch created book: {}", e);
-                                }
-                            }
+                            tracing::info!("Created pending book with ID: {}", book_id);
+                            pending_book_id = Some(book_id);
                         }
                         Err(e) => {
                             tracing::error!("Failed to create book record: {}", e);
+                            book_creation_error = Some(e.to_string());
                         }
                     }
                 }
                 Err(e) => {
-                    tracing::warn!("Failed to extract PDF metadata: {}", e);
+                    tracing::warn!("Failed to extract PDF metadata, using filename as title: {}", e);
+                    let title = {
+                        let without_ext = if let Some(dot_pos) = file_name.rfind('.') {
+                            &file_name[..dot_pos]
+                        } else {
+                            &file_name
+                        };
+                        without_ext.replace('_', " ").replace('-', " ").trim().to_string()
+                    };
+
+                    match state
+                        .db
+                        .create_book(&title, &expected_url, None, None, None, None, &[], &[], &[], "pending")
+                        .await
+                    {
+                        Ok(book_id) => {
+                            tracing::info!("Created pending book with ID: {} (metadata extraction failed)", book_id);
+                            pending_book_id = Some(book_id);
+                        }
+                        Err(e) => {
+                            tracing::error!("Failed to create book record: {}", e);
+                            book_creation_error = Some(e.to_string());
+                        }
+                    }
+                }
+            }
+        } else {
+            tracing::error!("No chunks available for upload {} - upload may be corrupted", form.upload_id);
+            if let Err(e) = state.s3.abort_upload(&form.upload_id).await {
+                tracing::warn!("Failed to abort upload: {}", e);
+            }
+            return crate::server_error(APIResponse::new_from_msg("Upload failed: no file data received"));
+        }
+
+        // If book creation failed, abort the S3 upload and return error
+        if let Some(error_msg) = book_creation_error {
+            // Abort the multipart upload to avoid orphaned S3 files
+            if let Err(e) = state.s3.abort_upload(&form.upload_id).await {
+                tracing::warn!("Failed to abort upload after book creation error: {}", e);
+            }
+            return crate::server_error(APIResponse::new_from_msg(&format!("Failed to create book: {}", error_msg)));
+        }
+
+        // Now complete the S3 upload
+        let object_url = match state.s3.complete_upload(&form.upload_id).await {
+            Ok(object_url) => object_url,
+            Err(e) => {
+                tracing::error!("failed to complete upload: {}", e);
+                // S3 failed - delete the pending book record if we created one
+                if let Some(book_id) = pending_book_id {
+                    if let Err(del_err) = state.db.delete_book(book_id).await {
+                        tracing::error!("Failed to delete pending book {} after S3 failure: {}", book_id, del_err);
+                    } else {
+                        tracing::info!("Deleted pending book {} after S3 failure", book_id);
+                    }
+                }
+                return crate::server_error(APIResponse::new_from_msg("failed to complete upload"));
+            }
+        };
+
+        // S3 succeeded - update book status to 'complete'
+        let mut created_book = None;
+        if let Some(book_id) = pending_book_id {
+            if let Err(e) = state.db.update_book_status(book_id, "complete").await {
+                tracing::error!("Failed to update book status to complete: {}", e);
+            } else {
+                match state.db.get_book_by_id(book_id).await {
+                    Ok(Some(book)) => {
+                        created_book = Some(book);
+                    }
+                    Ok(None) => {
+                        tracing::warn!("Book {} was created but not found", book_id);
+                    }
+                    Err(e) => {
+                        tracing::warn!("Failed to fetch created book: {}", e);
+                    }
                 }
             }
         }

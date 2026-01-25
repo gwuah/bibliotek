@@ -10,7 +10,9 @@ scripts:
     export PORT=$((5678 + MONO_ENV_ID))
     export API_PORT=$PORT
     cargo run --bin bibliotek -- -c config.yaml &
+    SERVER_PID=$!
     cd web && npm run dev
+    kill $SERVER_PID 2>/dev/null
 
   destroy: |
     echo "cleaning up bibliotek"
