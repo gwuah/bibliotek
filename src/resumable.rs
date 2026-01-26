@@ -1,9 +1,11 @@
 use crate::config::Config;
 use crate::error::ObjectStorageError;
 use aws_sdk_s3::config::Credentials;
+use aws_sdk_s3::presigning::PresigningConfig;
 use aws_sdk_s3::Client;
 use aws_sdk_s3::types::{CompletedMultipartUpload, CompletedPart};
 use serde::Serialize;
+use std::time::Duration;
 
 const DEFAULT_CHUNK_SIZE: i64 = 5 * 1024 * 1024;
 
@@ -390,6 +392,26 @@ impl ResumableUploadManager {
 
     pub fn get_file_url(&self, key: &str) -> String {
         crate::get_s3_url(&self.service, &self.bucket, key)
+    }
+
+    pub async fn get_presigned_url(
+        &self,
+        key: &str,
+        expires_in_secs: u64,
+    ) -> Result<String, ObjectStorageError> {
+        let presigning_config = PresigningConfig::expires_in(Duration::from_secs(expires_in_secs))
+            .map_err(|e| ObjectStorageError::S3Error(Box::new(e)))?;
+
+        let presigned = self
+            .client
+            .get_object()
+            .bucket(&self.bucket)
+            .key(key)
+            .presigned(presigning_config)
+            .await
+            .map_err(|e| ObjectStorageError::S3Error(Box::new(e)))?;
+
+        Ok(presigned.uri().to_string())
     }
 
     pub fn get_filename_from_key(key: &str) -> Option<String> {

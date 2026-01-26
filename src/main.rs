@@ -10,8 +10,8 @@ use bibliotek::assets::serve_embedded;
 use bibliotek::commonplace;
 use bibliotek::db::Database;
 use bibliotek::handler::{
-    AppState, abort_upload, create_author, create_category, create_tag, get_books, get_metadata,
-    get_pending_uploads, healthcheck, update_book, upload,
+    AppState, abort_upload, create_author, create_category, create_tag, get_books, get_download_url,
+    get_metadata, get_pending_uploads, healthcheck, update_book, upload,
 };
 use bibliotek::light;
 use bibliotek::research;
@@ -111,6 +111,7 @@ async fn main() {
         .route("/upload", post(upload))
         .route("/upload/pending", get(get_pending_uploads))
         .route("/upload/abort", post(abort_upload))
+        .route("/download", get(get_download_url))
         .layer(DefaultBodyLimit::max(10 * 1024 * 1024))
         .nest("/commonplace", commonplace::routes())
         .nest("/light", light::routes())

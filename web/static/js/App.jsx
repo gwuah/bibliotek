@@ -601,6 +601,27 @@ function BookRow({ book, entities, onUpdate, onEntitiesChange }) {
     return null
   }
 
+  const handleView = async () => {
+    try {
+      // Extract key from download_url (everything after the bucket domain)
+      const url = new URL(book.download_url)
+      const key = url.pathname.slice(1) // Remove leading slash
+      const res = await fetch(`/download?key=${encodeURIComponent(key)}`)
+      if (res.ok) {
+        const data = await res.json()
+        window.open(data.url, '_blank')
+      } else {
+        console.error('Failed to get download URL')
+        // Fallback to direct URL
+        window.open(book.download_url, '_blank')
+      }
+    } catch (e) {
+      console.error('Failed to get download URL:', e)
+      // Fallback to direct URL
+      window.open(book.download_url, '_blank')
+    }
+  }
+
   const bookAuthors = entities.authors.filter(a => book.author_ids.includes(String(a.id)))
   const bookTags = entities.tags.filter(t => book.tag_ids.includes(String(t.id)))
   const bookCategories = entities.categories.filter(c => book.category_ids.includes(String(c.id)))
@@ -626,14 +647,12 @@ function BookRow({ book, entities, onUpdate, onEntitiesChange }) {
         </td>
         <td className="px-2">
           <button onClick={() => setEditing(true)} className="border border-gray-400 px-3 text-sm hover:bg-gray-100 mr-1">edit</button>
-          <a 
-            href={book.download_url} 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="border border-gray-400 px-3 text-sm hover:bg-gray-100 ml-1 inline-block"
+          <button
+            onClick={handleView}
+            className="border border-gray-400 px-3 text-sm hover:bg-gray-100 ml-1"
           >
             view
-          </a>
+          </button>
         </td>
       </tr>
     )

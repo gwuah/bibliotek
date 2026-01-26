@@ -519,6 +519,33 @@ pub async fn create_category(State(state): State<AppState>, Json(payload): Json<
     }
 }
 
+#[derive(serde::Deserialize)]
+pub struct DownloadQuery {
+    pub key: String,
+}
+
+#[derive(serde::Serialize)]
+pub struct DownloadResponse {
+    pub url: String,
+}
+
+pub async fn get_download_url(
+    State(state): State<AppState>,
+    Query(query): Query<DownloadQuery>,
+) -> Response {
+    // Generate presigned URL valid for 1 hour
+    match state.resumable.get_presigned_url(&query.key, 3600).await {
+        Ok(url) => (StatusCode::OK, Json(DownloadResponse { url })).into_response(),
+        Err(e) => {
+            tracing::error!("failed to generate download url: {}", e);
+            crate::server_error(APIResponse::new_from_msg(&format!(
+                "failed to generate download url: {}",
+                e
+            )))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
