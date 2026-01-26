@@ -18,7 +18,7 @@ pub mod light;
 pub mod model;
 pub mod pdf_extract;
 pub mod research;
-pub mod s3;
+pub mod resumable;
 pub mod sync;
 
 pub fn internal_error<E: std::error::Error>(err: E) -> (StatusCode, String) {
@@ -49,10 +49,17 @@ pub fn unpack_error(err: &(dyn Error)) -> String {
 }
 
 pub fn get_s3_url(service: &str, bucket: &str, key: &str) -> String {
+    // URL-encode each path segment separately to preserve slashes
+    let encoded_key: String = key
+        .split('/')
+        .map(|segment| urlencoding::encode(segment).into_owned())
+        .collect::<Vec<_>>()
+        .join("/");
+
     match service {
-        "t3" => format!("https://{}.t3.storage.dev/{}", bucket, key),
-        "s3" => format!("https://{}.s3.amazonaws.com/{}", bucket, key),
-        _ => format!("https://{}.storage.dev/{}", service, key),
+        "t3" => format!("https://{}.t3.storage.dev/{}", bucket, encoded_key),
+        "s3" => format!("https://{}.s3.amazonaws.com/{}", bucket, encoded_key),
+        _ => format!("https://{}.storage.dev/{}", service, encoded_key),
     }
 }
 
