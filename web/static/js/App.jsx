@@ -122,12 +122,12 @@ function MassUploader({ onBookCreated }) {
         setQueue(prev => prev.map(e =>
           e.id === existingEntry.id
             ? {
-                ...e,
-                file,
-                metadata,
-                status: 'pending',
-                progress: e.bytes_uploaded > 0 ? Math.round((e.bytes_uploaded / file.size) * 100) : 0
-              }
+              ...e,
+              file,
+              metadata,
+              status: 'pending',
+              progress: e.bytes_uploaded > 0 ? Math.round((e.bytes_uploaded / file.size) * 100) : 0
+            }
             : e
         ))
       } else {
@@ -336,7 +336,7 @@ function MassUploader({ onBookCreated }) {
         />
         <div className="file-drop-content">
           <svg className="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
-            <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/>
+            <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2" />
           </svg>
           <div className="file-drop-text">
             <p className="text-sm font-bold">drop or click to add pdfs</p>
@@ -441,7 +441,7 @@ function MultiSelect({ options, selected, onChange, onCreate, placeholder, entit
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (containerRef.current && !containerRef.current.contains(e.target) &&
-          dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setIsOpen(false)
         setDropdownStyle(null)
       }
@@ -450,8 +450,8 @@ function MultiSelect({ options, selected, onChange, onCreate, placeholder, entit
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const filtered = options.filter(o => 
-    o.name.toLowerCase().includes(search.toLowerCase()) && 
+  const filtered = options.filter(o =>
+    o.name.toLowerCase().includes(search.toLowerCase()) &&
     !selected.some(s => s.id === o.id)
   )
 
@@ -466,7 +466,7 @@ function MultiSelect({ options, selected, onChange, onCreate, placeholder, entit
     setCreating(false)
   }
 
-  const showCreateOption = search.trim() && 
+  const showCreateOption = search.trim() &&
     !options.some(o => o.name.toLowerCase() === search.toLowerCase()) &&
     !selected.some(s => s.name.toLowerCase() === search.toLowerCase())
 
@@ -474,7 +474,7 @@ function MultiSelect({ options, selected, onChange, onCreate, placeholder, entit
 
   return (
     <div ref={containerRef} className="relative">
-      <div 
+      <div
         className="border border-gray-300 px-1 min-h-[24px] flex flex-wrap gap-1 cursor-text items-center"
         onClick={openDropdown}
       >
@@ -493,7 +493,7 @@ function MultiSelect({ options, selected, onChange, onCreate, placeholder, entit
         />
       </div>
       {showDropdown && createPortal(
-        <div 
+        <div
           ref={dropdownRef}
           style={dropdownStyle}
           className="bg-white border border-gray-300 max-h-40 overflow-auto shadow-lg"
@@ -603,21 +603,18 @@ function BookRow({ book, entities, onUpdate, onEntitiesChange }) {
 
   const handleView = async () => {
     try {
-      // Extract key from download_url (everything after the bucket domain)
       const url = new URL(book.download_url)
-      const key = url.pathname.slice(1) // Remove leading slash
+      const key = url.pathname.slice(1)
       const res = await fetch(`/download?key=${encodeURIComponent(key)}`)
       if (res.ok) {
         const data = await res.json()
         window.open(data.url, '_blank')
       } else {
         console.error('Failed to get download URL')
-        // Fallback to direct URL
         window.open(book.download_url, '_blank')
       }
     } catch (e) {
       console.error('Failed to get download URL:', e)
-      // Fallback to direct URL
       window.open(book.download_url, '_blank')
     }
   }
@@ -700,8 +697,8 @@ function BookRow({ book, entities, onUpdate, onEntitiesChange }) {
       </td>
       <td className="px-2 whitespace-nowrap">
         <button onClick={handleCancel} className="border border-gray-400 px-3 text-sm hover:bg-gray-100 mr-1">cancel</button>
-        <button 
-          onClick={handleSave} 
+        <button
+          onClick={handleSave}
           disabled={!hasChanges() || saving}
           className={`border border-gray-400 px-3 text-sm ${hasChanges() && !saving ? 'bg-green-100 hover:bg-green-200' : 'opacity-50 cursor-not-allowed'}`}
         >
@@ -730,9 +727,9 @@ function BookList({ books, entities, onBookUpdate, onEntitiesChange }) {
       </thead> */}
       <tbody>
         {books.map(book => (
-          <BookRow 
-            key={book.id} 
-            book={book} 
+          <BookRow
+            key={book.id}
+            book={book}
             entities={entities}
             onUpdate={onBookUpdate}
             onEntitiesChange={onEntitiesChange}
@@ -797,8 +794,8 @@ function BooksPage() {
         <MassUploader onBookCreated={(book) => setBooks(prev => [book, ...prev])} />
       </div>
       <div className="flex-1 border border-gray-300 overflow-auto">
-        <BookList 
-          books={books} 
+        <BookList
+          books={books}
           entities={entities}
           onBookUpdate={handleBookUpdate}
           onEntitiesChange={handleEntitiesChange}

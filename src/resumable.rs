@@ -7,7 +7,7 @@ use aws_sdk_s3::types::{CompletedMultipartUpload, CompletedPart};
 use serde::Serialize;
 use std::time::Duration;
 
-const DEFAULT_CHUNK_SIZE: i64 = 5 * 1024 * 1024;
+const DEFAULT_CHUNK_SIZE: i64 = 2 * 1024 * 1024;
 
 #[derive(Debug, Serialize)]
 pub struct InitResponse {
