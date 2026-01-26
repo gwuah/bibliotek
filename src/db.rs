@@ -7,8 +7,6 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use tokio::sync::Mutex;
 
-use std::env;
-
 const SYSTEM_MIGRATIONS: &[(&str, &str)] =
     &[("system/000_migrations_table.sql", include_str!("migrations/system/000_migrations_table.sql"))];
 
@@ -29,10 +27,6 @@ pub struct MetadataAggregate {
 pub struct Database {
     conn: Connection,
     tx_lock: Mutex<()>,
-}
-
-fn get_home_dir() -> Result<String> {
-    Ok(env::var("HOME")?)
 }
 
 impl Database {
@@ -86,9 +80,8 @@ impl Database {
         Ok(())
     }
 
-    pub async fn new(cfg: &Config) -> Result<Self> {
-        let base_dir = env::var("PIKO_DATA_DIR").unwrap_or_else(|_| get_home_dir().unwrap());
-        let path = Path::new(&base_dir).join(cfg.app.get_db());
+    pub async fn new(cfg: &Config, data_dir: &Path) -> Result<Self> {
+        let path = data_dir.join(cfg.app.get_db());
         let conn = Builder::new_local(path).build().await?.connect()?;
         let _ = conn
             .query("SELECT 1", ())

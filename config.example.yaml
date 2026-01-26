@@ -1,0 +1,12 @@
+app:
+  database: bibliotek.db
+  bucket: bibliotek-test
+  port: 5678
+
+storage:
+  aws_access_key_id: YOUR_ACCESS_KEY
+  aws_secret_access_key: YOUR_SECRET_KEY
+  aws_endpoint_url_s3: https://t3.storage.dev
+  aws_endpoint_url_iam: https://iam.storage.dev
+  aws_region: auto
+  service: t3

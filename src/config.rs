@@ -4,13 +4,25 @@ use serde::Deserialize;
 use serde_yaml;
 use std::env;
 use std::fs;
+use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
 #[command(name = "bibliotek")]
 #[command(about = "Runs the bibliotek service", long_about = None)]
 pub struct Cli {
     #[arg(short = 'c', long = "config")]
-    pub config_path: String,
+    pub config_path: Option<String>,
+}
+
+pub fn default_config_dir() -> PathBuf {
+    dirs::home_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join(".config")
+        .join("bibliotek")
+}
+
+pub fn default_config_path() -> PathBuf {
+    default_config_dir().join("config.yaml")
 }
 
 #[derive(Debug, Deserialize, Default)]

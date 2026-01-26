@@ -39,8 +39,12 @@ Ship bibliotek as a single self-contained binary that runs as a macOS daemon.
 
 | Mode | Frontend | Backend |
 |------|----------|---------|
-| Dev | `cd web && npm run dev` (hot reload on :5173) | `cargo run` (API on :5678) |
+| Dev | `cd web && npm run dev` (hot reload on :5173) | `cargo run -- -c config.yaml` (API on :5678) |
 | Release | Built into binary | `make release` produces single executable |
+
+**Local development:** When you pass `--config` (or `-c`), the database is created in the same directory as the config file. So `cargo run -- -c config.yaml` creates `./bibliotek.db` in the project root.
+
+**Production:** When no `--config` is passed, defaults to `~/.config/bibliotek/` for config and database.
 
 No `build.rs` script. Keep the build process explicit and simple.
 
@@ -48,9 +52,15 @@ No `build.rs` script. Keep the build process explicit and simple.
 
 ## Part 2: macOS Daemon (launchd)
 
-**Location:** `~/Library/LaunchAgents/com.gwuah.bibliotek.plist`
+The binary handles all path resolution automatically:
+- Config: `~/.config/bibliotek/config.yaml`
+- Database: `~/.config/bibliotek/bibliotek.db`
+
+Credentials go directly in `config.yaml` (gitignored).
 
 ### Minimal plist
+
+**Location:** `~/Library/LaunchAgents/com.gwuah.bibliotek.plist`
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -63,17 +73,7 @@ No `build.rs` script. Keep the build process explicit and simple.
     <key>ProgramArguments</key>
     <array>
         <string>/usr/local/bin/bibliotek</string>
-        <string>--config-path</string>
-        <string>~/.config/bibliotek/config.yaml</string>
     </array>
-
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>AWS_ACCESS_KEY_ID</key>
-        <string>TODO</string>
-        <key>AWS_SECRET_ACCESS_KEY</key>
-        <string>TODO</string>
-    </dict>
 
     <key>RunAtLoad</key>
     <true/>
@@ -81,19 +81,16 @@ No `build.rs` script. Keep the build process explicit and simple.
     <key>KeepAlive</key>
     <true/>
 
-    <key>WorkingDirectory</key>
-    <string>/Users/gwuah/.config/bibliotek</string>
-
     <key>StandardOutPath</key>
-    <string>~/Library/Logs/bibliotek.log</string>
+    <string>/tmp/bibliotek.log</string>
 
     <key>StandardErrorPath</key>
-    <string>~/Library/Logs/bibliotek.error.log</string>
+    <string>/tmp/bibliotek.error.log</string>
 </dict>
 </plist>
 ```
 
-`WorkingDirectory` points to the config directory so relative paths in `config.yaml` (database, schema) resolve correctly.
+No `WorkingDirectory` or `EnvironmentVariables` needed - the binary resolves `~/.config/bibliotek/` internally and loads `.env` from there.
 
 ### Commands
 
@@ -108,27 +105,31 @@ launchctl unload ~/Library/LaunchAgents/com.gwuah.bibliotek.plist
 launchctl stop com.gwuah.bibliotek && launchctl start com.gwuah.bibliotek
 
 # Logs
-tail -f ~/Library/Logs/bibliotek.log
+tail -f /tmp/bibliotek.log
 ```
 
 ---
 
-## Installation Steps
+## Installation
 
 ```bash
-# Automated
 make install
-# Then edit plist to set AWS credentials and run:
-launchctl load ~/Library/LaunchAgents/com.gwuah.bibliotek.plist
 ```
 
-Or manually after `make release`:
+This will:
+1. Build the release binary with embedded frontend
+2. Copy binary to `/usr/local/bin/bibliotek`
+3. Create `~/.config/bibliotek/` with config template
+4. Install the launchd plist
 
-```bash
-cp target/release/bibliotek /usr/local/bin/
-mkdir -p ~/.config/bibliotek
-cp config.yaml ~/.config/bibliotek/
-cp com.gwuah.bibliotek.plist ~/Library/LaunchAgents/
-# Edit plist to set AWS credentials
-launchctl load ~/Library/LaunchAgents/com.gwuah.bibliotek.plist
+Then:
+1. Edit `~/.config/bibliotek/config.yaml` with your AWS credentials
+2. Run `launchctl load ~/Library/LaunchAgents/com.gwuah.bibliotek.plist`
+
+### Config Directory Structure
+
+```
+~/.config/bibliotek/
+├── config.yaml    # App configuration (including credentials)
+└── bibliotek.db   # SQLite database (created on first run)
 ```

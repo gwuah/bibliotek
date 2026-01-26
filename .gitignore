@@ -1,5 +1,6 @@
 target/
 .env
+config.yaml
 *.db
 node_modules/
 *.pdf

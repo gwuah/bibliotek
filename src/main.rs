@@ -16,7 +16,7 @@ use bibliotek::light;
 use bibliotek::research;
 use bibliotek::s3::ObjectStorage;
 use bibliotek::{
-    config::{Cli, Config},
+    config::{Cli, Config, default_config_dir, default_config_path},
     handler::show_form,
 };
 use clap::Parser;
@@ -27,17 +27,37 @@ use tracing;
 
 #[tokio::main]
 async fn main() {
-    dotenv::dotenv().ok();
+    let args = Cli::parse();
+
+    // Determine config path and data directory
+    // If --config is provided, use its parent directory for data (database, etc.)
+    // Otherwise use ~/.config/bibliotek/ for both
+    let (config_path, data_dir) = match args.config_path {
+        Some(path) => {
+            let path = std::path::PathBuf::from(path);
+            let dir = path.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| std::path::PathBuf::from("."));
+            (path, dir)
+        }
+        None => {
+            let dir = default_config_dir();
+            (default_config_path(), dir)
+        }
+    };
+
+    // Ensure data directory exists
+    if let Err(e) = std::fs::create_dir_all(&data_dir) {
+        eprintln!("failed to create data directory {:?}: {}", data_dir, e);
+        std::process::exit(1);
+    }
 
     tracing_subscriber::fmt().json().init();
     tracing::info!("bibliotek.svc starting");
 
-    let args = Cli::parse();
-    let cfg = Config::new(&args.config_path).unwrap_or_else(|e| {
-        tracing::error!(error = %e, "failed to load config file");
+    let cfg = Config::new(config_path.to_str().unwrap()).unwrap_or_else(|e| {
+        tracing::error!(error = %e, path = ?config_path, "failed to load config file");
         std::process::exit(1);
     });
-    let db = Arc::new(Database::new(&cfg).await.unwrap_or_else(|e| {
+    let db = Arc::new(Database::new(&cfg, &data_dir).await.unwrap_or_else(|e| {
         tracing::error!(error = %e, "failed to setup database");
         std::process::exit(1);
     }));

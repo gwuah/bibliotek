@@ -8,17 +8,7 @@
     <key>ProgramArguments</key>
     <array>
         <string>/usr/local/bin/bibliotek</string>
-        <string>--config-path</string>
-        <string>/Users/gwuah/.config/bibliotek/config.yaml</string>
     </array>
-
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>AWS_ACCESS_KEY_ID</key>
-        <string>TODO</string>
-        <key>AWS_SECRET_ACCESS_KEY</key>
-        <string>TODO</string>
-    </dict>
 
     <key>RunAtLoad</key>
     <true/>
@@ -26,13 +16,10 @@
     <key>KeepAlive</key>
     <true/>
 
-    <key>WorkingDirectory</key>
-    <string>/Users/gwuah/.config/bibliotek</string>
-
     <key>StandardOutPath</key>
-    <string>/Users/gwuah/Library/Logs/bibliotek.log</string>
+    <string>/tmp/bibliotek.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/Users/gwuah/Library/Logs/bibliotek.error.log</string>
+    <string>/tmp/bibliotek.error.log</string>
 </dict>
 </plist>
