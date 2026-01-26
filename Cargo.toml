@@ -22,11 +22,9 @@ dotenv = "0.15"
 futures-util = "0.3.31"
 aws-config = {version = "1.8.4", features =  ["behavior-version-latest"] }
 aws-sdk-s3 = "1.101.0"
-pdf = "0.9"
-image = "0.25"
-pdfium-render = "0.8"
-lopdf = "0.33"
 chrono = { version = "0.4", features = ["serde"] }
 sha2 = "0.10"
+hex = "0.4"
+urlencoding = "2.1"
 
 

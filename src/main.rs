@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use axum::extract::DefaultBodyLimit;
 use axum::http::Method;
 use axum::{
     Router,
@@ -8,12 +9,12 @@ use axum::{
 use bibliotek::commonplace;
 use bibliotek::db::Database;
 use bibliotek::handler::{
-    AppState, create_author, create_category, create_tag, get_books, get_metadata, healthcheck, serve_index,
-    update_book, upload,
+    AppState, abort_upload, create_author, create_category, create_tag, get_books, get_metadata,
+    get_pending_uploads, healthcheck, serve_index, update_book, upload,
 };
 use bibliotek::light;
 use bibliotek::research;
-use bibliotek::s3::ObjectStorage;
+use bibliotek::resumable::ResumableUploadManager;
 use bibliotek::{
     config::{Cli, Config},
     handler::show_form,
@@ -41,8 +42,8 @@ async fn main() {
         tracing::error!(error = %e, "failed to setup database");
         std::process::exit(1);
     }));
-    let s3 = Arc::new(ObjectStorage::new(&cfg).await.unwrap_or_else(|e| {
-        tracing::error!(error = %e, "failed to setup object storage");
+    let resumable = Arc::new(ResumableUploadManager::new(&cfg).await.unwrap_or_else(|e| {
+        tracing::error!(error = %e, "failed to setup resumable upload manager");
         std::process::exit(1);
     }));
 
@@ -50,20 +51,20 @@ async fn main() {
     let cancellation_token = CancellationToken::new();
     let (shutdown_complete_tx, mut shutdown_complete_rx) = mpsc::channel::<()>(1);
 
-    // Background task to clean up stale upload sessions every 5 minutes
-    let cleanup_s3 = s3.clone();
+    // Background task to clean up expired uploads every hour
+    let cleanup_resumable = resumable.clone();
     let cleanup_token = cancellation_token.clone();
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(3600)); // 1 hour
         loop {
             tokio::select! {
                 _ = interval.tick() => {
-                    if let Err(e) = cleanup_s3.cleanup_stale_sessions(1800).await {
-                        tracing::warn!("Failed to cleanup stale sessions: {}", e);
+                    if let Err(e) = cleanup_resumable.cleanup_expired(24).await { // 24 hours
+                        tracing::warn!("Failed to cleanup expired uploads: {}", e);
                     }
                 }
                 _ = cleanup_token.cancelled() => {
-                    tracing::info!("Session cleanup task shutting down");
+                    tracing::info!("Upload cleanup task shutting down");
                     break;
                 }
             }
@@ -86,12 +87,15 @@ async fn main() {
         .route("/categories", post(create_category))
         .route("/upload", get(show_form))
         .route("/upload", post(upload))
+        .route("/upload/pending", get(get_pending_uploads))
+        .route("/upload/abort", post(abort_upload))
+        .layer(DefaultBodyLimit::max(10 * 1024 * 1024))
         .nest("/commonplace", commonplace::routes())
         .nest("/light", light::routes())
         .nest("/research", research::routes())
         .nest_service("/static", ServeDir::new("web/static"))
         .layer(cors)
-        .with_state(AppState { db, s3 });
+        .with_state(AppState { db, resumable });
 
     let listener = tokio::net::TcpListener::bind(&address).await.unwrap_or_else(|e| {
         tracing::error!(error = %e, "failed to setup tcp listener");

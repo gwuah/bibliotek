@@ -10,24 +10,32 @@ use std::sync::Arc;
 use tracing::info;
 
 use crate::{
-    api::{APIResponse, CreateEntityRequest, EntityResponse, QueryParams, UpdateBookRequest},
-    pdf_extract::{extract_metadata_from_bytes, infer_category_from_metadata, parse_keywords},
-    s3::ObjectStorage,
+    api::{APIResponse, CreateEntityRequest, EntityResponse, PendingUploadsResponse, QueryParams, UpdateBookRequest, UploadInitResponse},
+    pdf_extract::{infer_category_from_metadata, parse_keywords},
+    resumable::ResumableUploadManager,
 };
 use crate::{db::Database, error::HandlerError};
 
 #[derive(Clone)]
 pub struct AppState {
     pub db: Arc<Database>,
-    pub s3: Arc<ObjectStorage>,
+    pub resumable: Arc<ResumableUploadManager>,
 }
 
 #[derive(Debug)]
 pub struct Form {
     pub file_name: String,
+    pub file_size: i64,
+    pub file_signature: String,
     pub upload_id: String,
+    pub key: String,
     pub part_number: i32,
     pub chunk: axum::body::Bytes,
+    // Client-extracted PDF metadata
+    pub pdf_title: Option<String>,
+    pub pdf_author: Option<String>,
+    pub pdf_subject: Option<String>,
+    pub pdf_keywords: Option<String>,
 }
 
 const DEFAULT_PAGE: u32 = 1;
@@ -123,20 +131,49 @@ pub async fn add_book(State(state): State<AppState>, Query(qp): Query<QueryParam
 async fn extract_form(multipart: &mut Multipart) -> Result<Form, HandlerError> {
     let mut form = Form {
         file_name: String::new(),
+        file_size: 0,
+        file_signature: String::new(),
         upload_id: String::new(),
+        key: String::new(),
         part_number: 0,
         chunk: axum::body::Bytes::new(),
+        pdf_title: None,
+        pdf_author: None,
+        pdf_subject: None,
+        pdf_keywords: None,
     };
 
     while let Ok(Some(field)) = multipart.next_field().await {
         let form_field_name = field.name().unwrap_or("unknown");
         match form_field_name {
             "file_name" => form.file_name = crate::safe_parse_str("file_name", field).await?,
+            "file_size" => {
+                let size_str = crate::safe_parse_str("file_size", field).await?;
+                form.file_size = size_str.parse().unwrap_or(0);
+            }
+            "file_signature" => form.file_signature = crate::safe_parse_str("file_signature", field).await?,
             "upload_id" => form.upload_id = crate::safe_parse_str("upload_id", field).await?,
+            "key" => form.key = crate::safe_parse_str("key", field).await?,
             "chunk" => form.chunk = crate::safe_parse_bytes("chunk", field).await?,
             "part_number" => form.part_number = crate::safe_parse_num("part_number", field).await?,
+            "pdf_title" => {
+                let val = crate::safe_parse_str("pdf_title", field).await?;
+                if !val.is_empty() { form.pdf_title = Some(val); }
+            }
+            "pdf_author" => {
+                let val = crate::safe_parse_str("pdf_author", field).await?;
+                if !val.is_empty() { form.pdf_author = Some(val); }
+            }
+            "pdf_subject" => {
+                let val = crate::safe_parse_str("pdf_subject", field).await?;
+                if !val.is_empty() { form.pdf_subject = Some(val); }
+            }
+            "pdf_keywords" => {
+                let val = crate::safe_parse_str("pdf_keywords", field).await?;
+                if !val.is_empty() { form.pdf_keywords = Some(val); }
+            }
             _ => {
-                tracing::error!("unknown form field: {}", form_field_name);
+                tracing::warn!("unknown form field: {}", form_field_name);
                 continue;
             }
         }
@@ -145,20 +182,53 @@ async fn extract_form(multipart: &mut Multipart) -> Result<Form, HandlerError> {
     Ok(form)
 }
 
-async fn handle_init_upload(state: &AppState, multipart: &mut Multipart) -> Result<String, HandlerError> {
+async fn handle_init_upload(state: &AppState, multipart: &mut Multipart) -> Result<UploadInitResponse, HandlerError> {
     let form = extract_form(multipart).await?;
-    let response = state.s3.start_upload(form.file_name.as_str()).await?;
-    Ok(response)
+
+    if form.file_signature.is_empty() {
+        return Err(HandlerError::ValidationError("file_signature is required".to_string()));
+    }
+    if form.file_size <= 0 {
+        return Err(HandlerError::ValidationError("file_size must be positive".to_string()));
+    }
+    if form.file_name.is_empty() {
+        return Err(HandlerError::ValidationError("file_name is required".to_string()));
+    }
+
+    let init_response = state
+        .resumable
+        .init_or_resume(&form.file_signature, &form.file_name, form.file_size)
+        .await?;
+
+    Ok(UploadInitResponse {
+        upload_id: init_response.upload_id,
+        status: if init_response.is_resume { "resuming" } else { "ok" }.to_string(),
+        chunk_size: init_response.chunk_size,
+        total_chunks: init_response.total_chunks,
+        completed_chunks: init_response.completed_chunks,
+        key: Some(init_response.key),
+    })
 }
 
 async fn handle_continue_upload(state: &AppState, multipart: &mut Multipart) -> Result<String, HandlerError> {
     let form = extract_form(multipart).await?;
 
-    let response = state
-        .s3
-        .upload(&form.upload_id, form.chunk.to_vec(), form.part_number)
+    if form.upload_id.is_empty() {
+        return Err(HandlerError::ValidationError("upload_id is required".to_string()));
+    }
+    if form.key.is_empty() {
+        return Err(HandlerError::ValidationError("key is required".to_string()));
+    }
+    if form.part_number <= 0 {
+        return Err(HandlerError::ValidationError("part_number must be positive".to_string()));
+    }
+
+    let etag = state
+        .resumable
+        .upload_part(&form.upload_id, &form.key, form.chunk.to_vec(), form.part_number)
         .await?;
-    Ok(response)
+
+    Ok(etag)
 }
 
 pub async fn upload(
@@ -175,35 +245,30 @@ pub async fn upload(
     };
 
     if upload_state == "init" {
-        let upload_id = match handle_init_upload(&state, &mut multipart).await {
-            Ok(upload_id) => upload_id,
+        let init_response = match handle_init_upload(&state, &mut multipart).await {
+            Ok(response) => response,
             Err(e) => {
                 tracing::error!("failed to initialize upload: {}", e);
-                return crate::server_error(APIResponse::new_from_msg("failed to initialize upload"));
+                return crate::server_error(APIResponse::new_from_msg(&format!("failed to initialize upload: {}", e)));
             }
         };
 
-        return crate::good_response(APIResponse {
-            books: vec![],
-            status: "upload initialized".to_owned(),
-            upload_id: Some(upload_id),
-            metadata: None,
-        });
+        return (StatusCode::OK, Json(init_response)).into_response();
     }
 
     if upload_state == "continue" {
-        let upload_id = match handle_continue_upload(&state, &mut multipart).await {
-            Ok(upload_id) => upload_id,
+        let _etag = match handle_continue_upload(&state, &mut multipart).await {
+            Ok(etag) => etag,
             Err(e) => {
                 tracing::error!("failed to continue upload: {}", e);
-                return crate::server_error(APIResponse::new_from_msg("failed to continue upload"));
+                return crate::server_error(APIResponse::new_from_msg(&format!("failed to continue upload: {}", e)));
             }
         };
 
         return crate::good_response(APIResponse {
             books: vec![],
-            status: "upload progressed".to_owned(),
-            upload_id: Some(upload_id),
+            status: "ok".to_owned(),
+            upload_id: None,
             metadata: None,
         });
     }
@@ -217,185 +282,92 @@ pub async fn upload(
             }
         };
 
-        let chunks = match state.s3.get_upload_chunks(&form.upload_id).await {
-            Ok(chunks) => chunks,
-            Err(e) => {
-                tracing::warn!("failed to get chunks for metadata extraction: {}", e);
-                vec![]
-            }
-        };
+        if form.upload_id.is_empty() || form.key.is_empty() {
+            return crate::bad_request(APIResponse::new_from_msg("upload_id and key are required"));
+        }
 
-        let expected_url = match state.s3.get_expected_url(&form.upload_id) {
+        // Get filename from key
+        let file_name = ResumableUploadManager::get_filename_from_key(&form.key)
+            .unwrap_or_else(|| "unknown.pdf".to_string());
+
+        // Complete the S3 upload
+        let object_url = match state.resumable.complete(&form.upload_id, &form.key).await {
             Ok(url) => url,
             Err(e) => {
-                tracing::error!("failed to get expected URL: {}", e);
-                return crate::server_error(APIResponse::new_from_msg("failed to get upload session"));
-            }
-        };
-
-        let file_name = match state.s3.get_session_key(&form.upload_id) {
-            Ok(key) => key,
-            Err(e) => {
-                tracing::error!("failed to get session key: {}", e);
-                return crate::server_error(APIResponse::new_from_msg("failed to get upload session"));
-            }
-        };
-
-        // Extract metadata and create book with 'pending' status BEFORE completing S3
-        let mut pending_book_id: Option<i32> = None;
-        let mut book_creation_error: Option<String> = None;
-
-        if !chunks.is_empty() {
-            match extract_metadata_from_bytes(&chunks).await {
-                Ok(pdf_metadata) => {
-                    tracing::info!(
-                        "Extracted PDF metadata: title={:?}, author={:?}",
-                        pdf_metadata.title,
-                        pdf_metadata.author
-                    );
-
-                    let author_names: Vec<String> = if let Some(author) = &pdf_metadata.author {
-                        author
-                            .split(',')
-                            .map(|s| s.trim().to_string())
-                            .filter(|s| !s.is_empty())
-                            .collect()
-                    } else {
-                        vec![]
-                    };
-
-                    let tag_names = if let Some(keywords) = &pdf_metadata.keywords {
-                        parse_keywords(keywords)
-                    } else {
-                        vec![]
-                    };
-
-                    let mut category_names = vec![];
-                    if let Some(category) =
-                        infer_category_from_metadata(pdf_metadata.subject.as_deref(), pdf_metadata.keywords.as_deref())
-                    {
-                        category_names.push(category);
-                    }
-
-                    let title_from_filename = || {
-                        let without_ext = if let Some(dot_pos) = file_name.rfind('.') {
-                            &file_name[..dot_pos]
-                        } else {
-                            &file_name
-                        };
-                        without_ext.replace('_', " ").replace('-', " ").trim().to_string()
-                    };
-
-                    let title = match &pdf_metadata.title {
-                        Some(t) if !t.trim().is_empty() => t.clone(),
-                        _ => title_from_filename(),
-                    };
-
-                    // Create book with 'pending' status
-                    match state
-                        .db
-                        .create_book(
-                            &title,
-                            &expected_url,
-                            None,
-                            pdf_metadata.subject.as_deref(),
-                            None,
-                            None,
-                            &author_names,
-                            &tag_names,
-                            &category_names,
-                            "pending",
-                        )
-                        .await
-                    {
-                        Ok(book_id) => {
-                            tracing::info!("Created pending book with ID: {}", book_id);
-                            pending_book_id = Some(book_id);
-                        }
-                        Err(e) => {
-                            tracing::error!("Failed to create book record: {}", e);
-                            book_creation_error = Some(e.to_string());
-                        }
-                    }
-                }
-                Err(e) => {
-                    tracing::warn!("Failed to extract PDF metadata, using filename as title: {}", e);
-                    let title = {
-                        let without_ext = if let Some(dot_pos) = file_name.rfind('.') {
-                            &file_name[..dot_pos]
-                        } else {
-                            &file_name
-                        };
-                        without_ext.replace('_', " ").replace('-', " ").trim().to_string()
-                    };
-
-                    match state
-                        .db
-                        .create_book(&title, &expected_url, None, None, None, None, &[], &[], &[], "pending")
-                        .await
-                    {
-                        Ok(book_id) => {
-                            tracing::info!("Created pending book with ID: {} (metadata extraction failed)", book_id);
-                            pending_book_id = Some(book_id);
-                        }
-                        Err(e) => {
-                            tracing::error!("Failed to create book record: {}", e);
-                            book_creation_error = Some(e.to_string());
-                        }
-                    }
-                }
-            }
-        } else {
-            tracing::error!("No chunks available for upload {} - upload may be corrupted", form.upload_id);
-            if let Err(e) = state.s3.abort_upload(&form.upload_id).await {
-                tracing::warn!("Failed to abort upload: {}", e);
-            }
-            return crate::server_error(APIResponse::new_from_msg("Upload failed: no file data received"));
-        }
-
-        // If book creation failed, abort the S3 upload and return error
-        if let Some(error_msg) = book_creation_error {
-            // Abort the multipart upload to avoid orphaned S3 files
-            if let Err(e) = state.s3.abort_upload(&form.upload_id).await {
-                tracing::warn!("Failed to abort upload after book creation error: {}", e);
-            }
-            return crate::server_error(APIResponse::new_from_msg(&format!("Failed to create book: {}", error_msg)));
-        }
-
-        // Now complete the S3 upload
-        let object_url = match state.s3.complete_upload(&form.upload_id).await {
-            Ok(object_url) => object_url,
-            Err(e) => {
                 tracing::error!("failed to complete upload: {}", e);
-                // S3 failed - delete the pending book record if we created one
-                if let Some(book_id) = pending_book_id {
-                    if let Err(del_err) = state.db.delete_book(book_id).await {
-                        tracing::error!("Failed to delete pending book {} after S3 failure: {}", book_id, del_err);
-                    } else {
-                        tracing::info!("Deleted pending book {} after S3 failure", book_id);
-                    }
-                }
-                return crate::server_error(APIResponse::new_from_msg("failed to complete upload"));
+                return crate::server_error(APIResponse::new_from_msg(&format!("failed to complete upload: {}", e)));
             }
         };
 
-        // S3 succeeded - update book status to 'complete'
-        let mut created_book = None;
-        if let Some(book_id) = pending_book_id {
-            if let Err(e) = state.db.update_book_status(book_id, "complete").await {
-                tracing::error!("Failed to update book status to complete: {}", e);
+        // Use client-provided metadata (extracted via pdf.js in browser)
+        let title_from_filename = || {
+            let without_ext = if let Some(dot_pos) = file_name.rfind('.') {
+                &file_name[..dot_pos]
             } else {
-                match state.db.get_book_by_id(book_id).await {
-                    Ok(Some(book)) => {
-                        created_book = Some(book);
-                    }
-                    Ok(None) => {
-                        tracing::warn!("Book {} was created but not found", book_id);
-                    }
-                    Err(e) => {
-                        tracing::warn!("Failed to fetch created book: {}", e);
-                    }
+                &file_name
+            };
+            without_ext.replace('_', " ").replace('-', " ").trim().to_string()
+        };
+
+        let title = match &form.pdf_title {
+            Some(t) if !t.trim().is_empty() => t.clone(),
+            _ => title_from_filename(),
+        };
+
+        let author_names: Vec<String> = if let Some(author) = &form.pdf_author {
+            author
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect()
+        } else {
+            vec![]
+        };
+
+        let tag_names = if let Some(keywords) = &form.pdf_keywords {
+            parse_keywords(keywords)
+        } else {
+            vec![]
+        };
+
+        let mut category_names = vec![];
+        if let Some(category) =
+            infer_category_from_metadata(form.pdf_subject.as_deref(), form.pdf_keywords.as_deref())
+        {
+            category_names.push(category);
+        }
+
+        tracing::info!(
+            "Using client-provided metadata: title={:?}, author={:?}",
+            form.pdf_title,
+            form.pdf_author
+        );
+
+        let mut created_book = None;
+        match state
+            .db
+            .create_book(
+                &title,
+                &object_url,
+                None,
+                form.pdf_subject.as_deref(),
+                None,
+                None,
+                &author_names,
+                &tag_names,
+                &category_names,
+                "complete",
+            )
+            .await
+        {
+            Ok(book_id) => {
+                tracing::info!("Created book with ID: {}", book_id);
+                if let Ok(Some(book)) = state.db.get_book_by_id(book_id).await {
+                    created_book = Some(book);
                 }
+            }
+            Err(e) => {
+                tracing::error!("Failed to create book record: {}", e);
             }
         }
 
@@ -415,6 +387,45 @@ pub async fn upload(
     }
 
     (StatusCode::OK, Json(APIResponse::new_from_msg("Files uploaded successfully"))).into_response()
+}
+
+pub async fn get_pending_uploads(State(state): State<AppState>) -> Response {
+    match state.resumable.list_pending().await {
+        Ok(uploads) => {
+            (StatusCode::OK, Json(PendingUploadsResponse { uploads })).into_response()
+        }
+        Err(e) => {
+            tracing::error!("failed to list pending uploads: {}", e);
+            crate::server_error(APIResponse::new_from_msg(&format!("failed to list pending uploads: {}", e)))
+        }
+    }
+}
+
+pub async fn abort_upload(
+    State(state): State<AppState>,
+    mut multipart: Multipart,
+) -> Response {
+    let form = match extract_form(&mut multipart).await {
+        Ok(form) => form,
+        Err(e) => {
+            tracing::error!("failed to extract form: {}", e);
+            return crate::bad_request(APIResponse::new_from_msg("failed to extract form"));
+        }
+    };
+
+    if form.upload_id.is_empty() || form.key.is_empty() {
+        return crate::bad_request(APIResponse::new_from_msg("upload_id and key are required"));
+    }
+
+    match state.resumable.abort(&form.upload_id, &form.key).await {
+        Ok(()) => {
+            crate::good_response(APIResponse::new_from_msg("upload aborted"))
+        }
+        Err(e) => {
+            tracing::error!("failed to abort upload: {}", e);
+            crate::server_error(APIResponse::new_from_msg(&format!("failed to abort upload: {}", e)))
+        }
+    }
 }
 
 pub async fn show_form() -> Html<&'static str> {

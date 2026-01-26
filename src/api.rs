@@ -1,5 +1,6 @@
 use crate::db::*;
 use crate::model::*;
+use crate::resumable::PendingUpload;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
@@ -8,6 +9,29 @@ pub struct QueryParams {
     pub page: Option<u32>,
     pub limit: Option<u32>,
     pub state: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UploadInitRequest {
+    pub file_name: String,
+    pub file_size: i64,
+    pub file_signature: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct UploadInitResponse {
+    pub upload_id: String,
+    pub status: String,
+    pub chunk_size: i64,
+    pub total_chunks: i64,
+    pub completed_chunks: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub key: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PendingUploadsResponse {
+    pub uploads: Vec<PendingUpload>,
 }
 
 #[derive(Debug, Deserialize)]
