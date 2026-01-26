@@ -81,6 +81,9 @@ No `build.rs` script. Keep the build process explicit and simple.
     <key>KeepAlive</key>
     <true/>
 
+    <key>WorkingDirectory</key>
+    <string>/Users/gwuah/.config/bibliotek</string>
+
     <key>StandardOutPath</key>
     <string>~/Library/Logs/bibliotek.log</string>
 
@@ -90,7 +93,7 @@ No `build.rs` script. Keep the build process explicit and simple.
 </plist>
 ```
 
-No `WorkingDirectory` needed once assets are embedded.
+`WorkingDirectory` points to the config directory so relative paths in `config.yaml` (database, schema) resolve correctly.
 
 ### Commands
 
@@ -112,12 +115,20 @@ tail -f ~/Library/Logs/bibliotek.log
 
 ## Installation Steps
 
-After `make release`:
+```bash
+# Automated
+make install
+# Then edit plist to set AWS credentials and run:
+launchctl load ~/Library/LaunchAgents/com.gwuah.bibliotek.plist
+```
+
+Or manually after `make release`:
 
 ```bash
 cp target/release/bibliotek /usr/local/bin/
 mkdir -p ~/.config/bibliotek
 cp config.yaml ~/.config/bibliotek/
 cp com.gwuah.bibliotek.plist ~/Library/LaunchAgents/
+# Edit plist to set AWS credentials
 launchctl load ~/Library/LaunchAgents/com.gwuah.bibliotek.plist
 ```
