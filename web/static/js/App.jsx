@@ -794,19 +794,20 @@ const VALID_PAGES = ['books', 'highlights', 'research']
 function parseRoute() {
   const path = window.location.pathname.slice(1)
   const segments = path.split('/').filter(Boolean)
-  
+
   if (segments.length === 0) {
     return { page: 'books', resourceId: null }
   }
-  
+
   const page = VALID_PAGES.includes(segments[0]) ? segments[0] : 'books'
   const resourceId = segments[1] ? parseInt(segments[1], 10) : null
-  
+
   return { page, resourceId: isNaN(resourceId) ? null : resourceId }
 }
 
 export default function App() {
   const [route, setRoute] = useState(parseRoute)
+  const [counts, setCounts] = useState({ books: 0, highlights: 0, research: 0 })
 
   useEffect(() => {
     const handlePopState = () => {
@@ -814,6 +815,31 @@ export default function App() {
     }
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
+  useEffect(() => {
+    const fetchCounts = async () => {
+      try {
+        const [booksRes, highlightsRes, researchRes] = await Promise.all([
+          fetch('/books'),
+          fetch('/commonplace/resources?limit=1000&type=website'),
+          fetch('/commonplace/resources?limit=1000&type=pdf')
+        ])
+
+        const booksData = booksRes.ok ? await booksRes.json() : { books: [] }
+        const highlightsData = highlightsRes.ok ? await highlightsRes.json() : { data: [] }
+        const researchData = researchRes.ok ? await researchRes.json() : { data: [] }
+
+        setCounts({
+          books: booksData.books?.length || 0,
+          highlights: highlightsData.data?.length || 0,
+          research: researchData.data?.length || 0
+        })
+      } catch (err) {
+        console.error('Failed to fetch counts:', err)
+      }
+    }
+    fetchCounts()
   }, [])
 
   const navigateTo = (page, resourceId = null) => {
@@ -827,30 +853,30 @@ export default function App() {
   return (
     <div className="p-10">
       <nav className="app-nav">
-        <button 
+        <button
           className={route.page === 'books' ? 'active' : ''}
           onClick={() => navigateTo('books')}
         >
-          Books
+          Books {counts.books > 0 && `(${counts.books})`}
         </button>
-        <button 
+        <button
           className={route.page === 'highlights' ? 'active' : ''}
           onClick={() => navigateTo('highlights')}
         >
-          Highlights
+          Highlights {counts.highlights > 0 && `(${counts.highlights})`}
         </button>
-        <button 
+        <button
           className={route.page === 'research' ? 'active' : ''}
           onClick={() => navigateTo('research')}
         >
-          Research
+          Research {counts.research > 0 && `(${counts.research})`}
         </button>
       </nav>
 
       {route.page === 'books' && <BooksPage />}
       {route.page === 'highlights' && <HighlightsPage />}
       {route.page === 'research' && (
-        <ResearchPage 
+        <ResearchPage
           resourceId={route.resourceId}
           onNavigate={(id) => navigateTo('research', id)}
         />
