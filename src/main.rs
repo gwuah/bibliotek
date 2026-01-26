@@ -11,7 +11,7 @@ use bibliotek::commonplace;
 use bibliotek::db::Database;
 use bibliotek::handler::{
     AppState, abort_upload, create_author, create_category, create_tag, get_books, get_metadata,
-    get_pending_uploads, healthcheck, serve_index, update_book, upload,
+    get_pending_uploads, healthcheck, update_book, upload,
 };
 use bibliotek::light;
 use bibliotek::research;
@@ -101,7 +101,6 @@ async fn main() {
 
     let app = Router::new()
         .route("/", get(healthcheck))
-        .route("/index.html", get(serve_index))
         .route("/books", get(get_books))
         .route("/books/:id", put(update_book))
         .route("/metadata", get(get_metadata))

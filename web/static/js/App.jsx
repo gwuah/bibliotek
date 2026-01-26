@@ -85,7 +85,7 @@ function MassUploader({ onBookCreated }) {
             completed_chunks: u.completed_chunks,
             upload_id: u.upload_id,
             file: null,
-            key: null,
+            key: u.key,
             chunk_size: null,
             total_chunks: null,
             progress: 0,

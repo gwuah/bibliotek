@@ -7,8 +7,14 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/local/bin/bibliotek</string>
+        <string>/Users/gwuah/.local/bin/bibliotek</string>
     </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>/Users/gwuah</string>
+    </dict>
 
     <key>RunAtLoad</key>
     <true/>

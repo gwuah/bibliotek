@@ -1,6 +1,6 @@
 APP_NAME := bibliotek
 LABEL := com.gwuah.$(APP_NAME)
-BIN_DIR := /usr/local/bin
+BIN_DIR := $(HOME)/.local/bin
 CONFIG_DIR := $(HOME)/.config/$(APP_NAME)
 LAUNCH_AGENTS_DIR := $(HOME)/Library/LaunchAgents
 PLIST_NAME := $(LABEL).plist
@@ -15,6 +15,7 @@ release:
 	cargo build --release
 
 install: release
+	mkdir -p $(BIN_DIR)
 	cp target/release/$(APP_NAME) $(BIN_DIR)/
 	mkdir -p $(CONFIG_DIR)
 	@if [ ! -f $(CONFIG_DIR)/config.yaml ]; then \
@@ -36,6 +37,7 @@ uninstall:
 	@echo "Config left at $(CONFIG_DIR)/ - remove manually if desired"
 
 upgrade: release
+	mkdir -p $(BIN_DIR)
 	cp target/release/$(APP_NAME) $(BIN_DIR)/
 	launchctl stop $(LABEL) && launchctl start $(LABEL)
 	@echo "Upgraded and restarted $(APP_NAME)"

@@ -1,9 +1,9 @@
 use crate::config::Config;
 use crate::error::ObjectStorageError;
+use aws_sdk_s3::config::Credentials;
 use aws_sdk_s3::Client;
 use aws_sdk_s3::types::{CompletedMultipartUpload, CompletedPart};
 use serde::Serialize;
-use std::env;
 
 const DEFAULT_CHUNK_SIZE: i64 = 5 * 1024 * 1024;
 
@@ -20,6 +20,7 @@ pub struct InitResponse {
 #[derive(Debug, Serialize)]
 pub struct PendingUpload {
     pub upload_id: String,
+    pub key: String,
     pub file_name: String,
     pub file_signature: String,
     pub completed_chunks: i64,
@@ -41,12 +42,20 @@ pub struct ResumableUploadManager {
 
 impl ResumableUploadManager {
     pub async fn new(cfg: &Config) -> Result<Self, ObjectStorageError> {
-        let region = env::var("AWS_REGION")?;
-        let endpoint_url = env::var("AWS_ENDPOINT_URL_S3")?;
+        let region = cfg.storage.aws_region.clone();
+        let endpoint_url = cfg.storage.aws_endpoint_url_s3.clone();
+        let credentials = Credentials::new(
+            &cfg.storage.aws_access_key_id,
+            &cfg.storage.aws_secret_access_key,
+            None,
+            None,
+            "config",
+        );
 
         let config = aws_config::from_env()
             .region(aws_config::Region::new(region))
             .endpoint_url(endpoint_url)
+            .credentials_provider(credentials)
             .load()
             .await;
 
@@ -315,6 +324,7 @@ impl ResumableUploadManager {
 
                 pending.push(PendingUpload {
                     upload_id,
+                    key,
                     file_name: metadata.file_name,
                     file_signature: metadata.signature,
                     completed_chunks,
