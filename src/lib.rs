@@ -8,6 +8,7 @@ use axum::{
 use std::error::Error;
 
 pub mod api;
+pub mod assets;
 pub mod commonplace;
 pub mod config;
 pub mod db;
