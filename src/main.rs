@@ -35,7 +35,10 @@ async fn main() {
     let (config_path, data_dir) = match args.config_path {
         Some(path) => {
             let path = std::path::PathBuf::from(path);
-            let dir = path.parent().map(|p| p.to_path_buf()).unwrap_or_else(|| std::path::PathBuf::from("."));
+            let dir = path
+                .parent()
+                .map(|p| p.to_path_buf())
+                .unwrap_or_else(|| std::path::PathBuf::from("."));
             (path, dir)
         }
         None => {
