@@ -26,6 +26,27 @@ pub struct LightHighlight {
     pub url: String,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct WordEntry {
+    pub id: i64,
+    pub word: String,
+    pub date: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct WordsSyncRequest {
+    pub source: String,
+    pub words: Vec<WordEntry>,
+}
+
+#[derive(Debug, Serialize, Default)]
+pub struct WordsSyncResponse {
+    pub words_created: i32,
+    pub words_updated: i32,
+    pub words_deleted: i32,
+    pub words_unchanged: i32,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct SyncRequest {
     pub source: String,
@@ -239,6 +260,179 @@ async fn soft_delete_orphan_annotations(
         if is_orphan(&ext_id, seen) {
             if lib.soft_delete_annotation(orphan.id()).await.unwrap_or(false) {
                 stats.annotations_deleted += 1;
+            }
+        }
+    }
+}
+
+// Words sync handler - stores words without URL association
+pub async fn sync_words(State(state): State<AppState>, Json(payload): Json<WordsSyncRequest>) -> Response {
+    let lib = Commonplace::new(state.db.connection());
+    let mut stats = WordsSyncResponse::default();
+    let mut seen_external_ids = HashSet::new();
+
+    // Find or create a "words" resource to hold all word annotations
+    let resource_id = match find_or_create_words_resource(&lib).await {
+        Some(id) => id,
+        None => return success(stats),
+    };
+
+    for word_entry in &payload.words {
+        sync_word(&lib, &payload.source, resource_id, word_entry, &mut stats, &mut seen_external_ids).await;
+    }
+
+    soft_delete_orphan_words(&lib, &payload.source, &seen_external_ids, &mut stats).await;
+
+    success(stats)
+}
+
+async fn find_or_create_words_resource(lib: &Commonplace<'_>) -> Option<i32> {
+    const WORDS_RESOURCE_TITLE: &str = "light:words";
+
+    match lib.find_resource_by_title(WORDS_RESOURCE_TITLE).await {
+        Ok(Some(resource)) => return Some(resource.id),
+        Ok(None) => {}
+        Err(e) => {
+            tracing::error!("Failed to find words resource: {}", e);
+            return None;
+        }
+    }
+
+    let content_hash = compute_resource_hash(WORDS_RESOURCE_TITLE);
+    match lib
+        .create_resource(CreateResource {
+            title: WORDS_RESOURCE_TITLE.to_string(),
+            resource_type: ResourceType::Collection,
+            external_id: Some(WORDS_RESOURCE_TITLE.to_string()),
+            content_hash: Some(content_hash),
+        })
+        .await
+    {
+        Ok(resource) => Some(resource.id),
+        Err(e) => {
+            tracing::error!("Failed to create words resource: {}", e);
+            None
+        }
+    }
+}
+
+async fn sync_word(
+    lib: &Commonplace<'_>,
+    source: &str,
+    resource_id: i32,
+    word_entry: &WordEntry,
+    stats: &mut WordsSyncResponse,
+    seen: &mut HashSet<String>,
+) {
+    let external_id = format!("{}:word:{}", source, word_entry.id);
+    let content_hash = compute_annotation_hash(&word_entry.word, None);
+    seen.insert(external_id.clone());
+
+    match upsert_word(lib, &external_id, resource_id, word_entry, &content_hash).await {
+        SyncResult::Created(()) => stats.words_created += 1,
+        SyncResult::Updated(()) => stats.words_updated += 1,
+        SyncResult::Unchanged(()) => stats.words_unchanged += 1,
+        SyncResult::Error => {}
+    }
+}
+
+async fn upsert_word(
+    lib: &Commonplace<'_>,
+    external_id: &str,
+    resource_id: i32,
+    word_entry: &WordEntry,
+    content_hash: &str,
+) -> SyncResult<()> {
+    let existing = match lib.find_annotation_by_external_id(external_id).await {
+        Ok(a) => a,
+        Err(e) => {
+            log_find_error("word", external_id, e);
+            return SyncResult::Error;
+        }
+    };
+
+    let boundary = serde_json::json!({
+        "id": word_entry.id,
+        "date": word_entry.date,
+    });
+
+    let Some(ann) = existing else {
+        return create_word(lib, external_id, resource_id, word_entry, content_hash, boundary).await;
+    };
+
+    if is_unchanged(&ann, content_hash) {
+        return SyncResult::Unchanged(());
+    }
+
+    update_word(lib, external_id, ann.id, word_entry, content_hash, boundary).await
+}
+
+async fn create_word(
+    lib: &Commonplace<'_>,
+    external_id: &str,
+    resource_id: i32,
+    word_entry: &WordEntry,
+    content_hash: &str,
+    boundary: serde_json::Value,
+) -> SyncResult<()> {
+    let result = lib
+        .create_annotation(CreateAnnotation {
+            resource_id,
+            text: word_entry.word.clone(),
+            color: None, // No color for words
+            boundary: Some(boundary),
+            external_id: Some(external_id.to_string()),
+            content_hash: Some(content_hash.to_string()),
+        })
+        .await;
+
+    handle_create_result_unit(result, "word", external_id)
+}
+
+async fn update_word(
+    lib: &Commonplace<'_>,
+    external_id: &str,
+    id: i32,
+    word_entry: &WordEntry,
+    content_hash: &str,
+    boundary: serde_json::Value,
+) -> SyncResult<()> {
+    let result = lib
+        .update_annotation(
+            id,
+            UpdateAnnotation {
+                text: Some(word_entry.word.clone()),
+                color: None,
+                boundary: Some(boundary),
+                content_hash: Some(content_hash.to_string()),
+            },
+        )
+        .await;
+
+    handle_update_result_unit(result, id, "word", external_id)
+}
+
+async fn soft_delete_orphan_words(
+    lib: &Commonplace<'_>,
+    source: &str,
+    seen: &HashSet<String>,
+    stats: &mut WordsSyncResponse,
+) {
+    let source_prefix = format!("{}:word:", source);
+
+    let orphans = match lib.find_annotations_by_source_prefix(&source_prefix, None).await {
+        Ok(o) => o,
+        Err(e) => {
+            tracing::error!("Failed to find orphan words: {}", e);
+            return;
+        }
+    };
+
+    for orphan in orphans {
+        let ext_id = orphan.external_id().map(|s| s.to_string());
+        if is_orphan(&ext_id, seen) {
+            if lib.soft_delete_annotation(orphan.id()).await.unwrap_or(false) {
+                stats.words_deleted += 1;
             }
         }
     }

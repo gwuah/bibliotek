@@ -1,7 +1,11 @@
 const COMMONPLACE_API = "http://localhost:5678";
 
+let activeTab = "highlights";
+
 document.addEventListener("DOMContentLoaded", () => {
   loadAndRenderHighlights();
+  loadAndRenderWords();
+  setupTabs();
 });
 
 const toggleBtn = document.getElementById("toggle");
@@ -10,7 +14,7 @@ toggleBtn.addEventListener("click", () => {
     chrome.tabs.sendMessage(
       tabs[0].id,
       { action: "toggleHighlight" },
-      (response) => {}
+      (response) => {},
     );
   });
 });
@@ -39,7 +43,8 @@ const importCancel = document.getElementById("import-cancel");
 const importConfirm = document.getElementById("import-confirm");
 
 importBtn.addEventListener("click", () => {
-  importContainer.style.display = importContainer.style.display === "none" ? "block" : "none";
+  importContainer.style.display =
+    importContainer.style.display === "none" ? "block" : "none";
   importInput.value = "";
 });
 
@@ -101,10 +106,38 @@ importConfirm.addEventListener("click", () => {
   });
 });
 
-const syncBtn = document.getElementById("sync");
-syncBtn.addEventListener("click", () => {
-  syncToCommonplace();
+const syncHighlightsBtn = document.getElementById("sync-highlights");
+syncHighlightsBtn.addEventListener("click", () => {
+  syncHighlightsToCommonplace();
 });
+
+const syncWordsBtn = document.getElementById("sync-words");
+syncWordsBtn.addEventListener("click", () => {
+  syncWordsToCommonplace();
+});
+
+function setupTabs() {
+  const tabHighlights = document.getElementById("tab-highlights");
+  const tabWords = document.getElementById("tab-words");
+  const contentHighlights = document.getElementById("tab-content-highlights");
+  const contentWords = document.getElementById("tab-content-words");
+
+  tabHighlights.addEventListener("click", () => {
+    activeTab = "highlights";
+    tabHighlights.classList.add("active");
+    tabWords.classList.remove("active");
+    contentHighlights.style.display = "block";
+    contentWords.style.display = "none";
+  });
+
+  tabWords.addEventListener("click", () => {
+    activeTab = "words";
+    tabWords.classList.add("active");
+    tabHighlights.classList.remove("active");
+    contentWords.style.display = "block";
+    contentHighlights.style.display = "none";
+  });
+}
 
 function showSyncStatus(message, type) {
   const statusEl = document.getElementById("sync-status");
@@ -118,10 +151,8 @@ function hideSyncStatus() {
   statusEl.style.display = "none";
 }
 
-async function syncToCommonplace() {
-  const statusEl = document.getElementById("sync-status");
-
-  showSyncStatus("Syncing...", "syncing");
+async function syncHighlightsToCommonplace() {
+  showSyncStatus("Syncing highlights...", "syncing");
 
   chrome.storage.local.get({ highlights: {}, sourceId: null }, async (data) => {
     const highlights = data.highlights;
@@ -142,7 +173,7 @@ async function syncToCommonplace() {
     }
 
     try {
-      const response = await fetch(`${COMMONPLACE_API}/light/sync`, {
+      const response = await fetch(`${COMMONPLACE_API}/light/sync_highlights`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -150,15 +181,17 @@ async function syncToCommonplace() {
         body: JSON.stringify({ source, highlights }),
       });
 
-      console.log("Response from sync:", response);
-
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
 
       const result = await response.json();
-      const { annotations_created, annotations_updated, annotations_deleted, annotations_unchanged } =
-        result.data;
+      const {
+        annotations_created,
+        annotations_updated,
+        annotations_deleted,
+        annotations_unchanged,
+      } = result.data;
 
       const message = `+${annotations_created} new, ${annotations_updated} updated, ${annotations_deleted} deleted, ${annotations_unchanged} unchanged`;
       showSyncStatus(message, "success");
@@ -169,6 +202,59 @@ async function syncToCommonplace() {
       setTimeout(hideSyncStatus, 3000);
     } catch (err) {
       console.error("Sync failed:", err);
+      showSyncStatus(`Sync failed: ${err.message}`, "error");
+      setTimeout(hideSyncStatus, 3000);
+    }
+  });
+}
+
+async function syncWordsToCommonplace() {
+  showSyncStatus("Syncing words...", "syncing");
+
+  chrome.storage.local.get({ words: [], sourceId: null }, async (data) => {
+    const words = data.words;
+    let sourceId = data.sourceId;
+
+    // Generate sourceId if it doesn't exist (for existing installations)
+    if (!sourceId) {
+      sourceId = crypto.randomUUID();
+      chrome.storage.local.set({ sourceId });
+    }
+
+    const source = `light_${sourceId}`;
+
+    if (words.length === 0) {
+      showSyncStatus("No words to sync", "error");
+      setTimeout(hideSyncStatus, 2000);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${COMMONPLACE_API}/light/sync_words`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ source, words }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      const { words_created, words_updated, words_deleted, words_unchanged } =
+        result.data;
+
+      const message = `+${words_created} new, ${words_updated} updated, ${words_deleted} deleted, ${words_unchanged} unchanged`;
+      showSyncStatus(message, "success");
+
+      // Store last sync timestamp
+      chrome.storage.local.set({ lastWordsSync: new Date().toISOString() });
+
+      setTimeout(hideSyncStatus, 3000);
+    } catch (err) {
+      console.error("Words sync failed:", err);
       showSyncStatus(`Sync failed: ${err.message}`, "error");
       setTimeout(hideSyncStatus, 3000);
     }
@@ -270,12 +356,12 @@ function renderHighlights(highlightsByUrl) {
     const latestA = Math.max(
       ...Object.values(domainGroups[a])
         .flat()
-        .map((h) => new Date(h.date).getTime())
+        .map((h) => new Date(h.date).getTime()),
     );
     const latestB = Math.max(
       ...Object.values(domainGroups[b])
         .flat()
-        .map((h) => new Date(h.date).getTime())
+        .map((h) => new Date(h.date).getTime()),
     );
     return latestB - latestA;
   });
@@ -288,7 +374,7 @@ function renderHighlights(highlightsByUrl) {
     // Count total highlights for this domain
     const totalHighlightsInDomain = Object.values(urlsInDomain).reduce(
       (sum, highlights) => sum + highlights.length,
-      0
+      0,
     );
     stats.totalHighlights += totalHighlightsInDomain;
 
@@ -296,7 +382,7 @@ function renderHighlights(highlightsByUrl) {
     const latestTimestamp = Math.max(
       ...Object.values(urlsInDomain)
         .flat()
-        .map((h) => new Date(h.date).getTime())
+        .map((h) => new Date(h.date).getTime()),
     );
     const formattedDate = formatDate(latestTimestamp);
 
@@ -356,7 +442,7 @@ function renderHighlights(highlightsByUrl) {
               { action: "scrollToHighlight", groupID: highlight.groupID },
               (response) => {
                 console.log("Response from content script:", response);
-              }
+              },
             );
           });
         });
@@ -409,6 +495,57 @@ function deleteHighlightFromPopup(url, groupID) {
     chrome.storage.local.set({ highlights: highlights }, () => {
       // Re-render the highlights
       renderHighlights(highlights);
+    });
+  });
+}
+
+// Words functions
+function loadAndRenderWords() {
+  chrome.storage.local.get({ words: [] }, (data) => {
+    renderWords(data.words);
+  });
+}
+
+function renderWords(words) {
+  const wordsList = document.getElementById("words-list");
+  const totalWordsSpan = document.getElementById("total-words");
+
+  wordsList.innerHTML = "";
+
+  // Sort words alphabetically
+  const sortedWords = [...words].sort((a, b) =>
+    a.word.toLowerCase().localeCompare(b.word.toLowerCase()),
+  );
+
+  totalWordsSpan.textContent = sortedWords.length;
+
+  sortedWords.forEach((wordEntry) => {
+    const wordItem = document.createElement("div");
+    wordItem.className = "word-item";
+
+    const wordText = document.createElement("span");
+    wordText.className = "word-text";
+    wordText.textContent = wordEntry.word;
+
+    const deleteBtn = document.createElement("span");
+    deleteBtn.className = "word-delete";
+    deleteBtn.textContent = "x";
+    deleteBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      deleteWordFromPopup(wordEntry.id);
+    });
+
+    wordItem.appendChild(wordText);
+    wordItem.appendChild(deleteBtn);
+    wordsList.appendChild(wordItem);
+  });
+}
+
+function deleteWordFromPopup(wordId) {
+  chrome.storage.local.get({ words: [] }, (data) => {
+    const words = data.words.filter((w) => w.id !== wordId);
+    chrome.storage.local.set({ words: words }, () => {
+      renderWords(words);
     });
   });
 }
