@@ -40,6 +40,7 @@ pub fn compute_note_hash(content: &str) -> String {
 pub enum ResourceType {
     Website,
     Pdf,
+    Collection,
 }
 
 impl ResourceType {
@@ -47,6 +48,7 @@ impl ResourceType {
         match self {
             ResourceType::Website => "website",
             ResourceType::Pdf => "pdf",
+            ResourceType::Collection => "collection",
         }
     }
 
@@ -54,6 +56,7 @@ impl ResourceType {
         match s.to_lowercase().as_str() {
             "website" => Some(ResourceType::Website),
             "pdf" => Some(ResourceType::Pdf),
+            "collection" => Some(ResourceType::Collection),
             _ => None,
         }
     }

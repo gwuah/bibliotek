@@ -8,7 +8,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // console.log(request)
   if (request.action === "scrollToHighlight") {
     const element = document.querySelector(
-      `span[data-group-id='${request.groupID}']`
+      `span[data-group-id='${request.groupID}']`,
     );
     if (element) {
       element.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -30,7 +30,32 @@ document.addEventListener("keydown", (event) => {
   if (event.ctrlKey && event.key === "a") {
     highlightSelectedText();
   }
+  if (event.ctrlKey && event.key === "s") {
+    event.preventDefault(); // prevent browser save dialog
+    captureWord();
+  }
 });
+
+function captureWord() {
+  const selection = window.getSelection();
+  const word = selection.toString().trim();
+  if (word === "") return;
+
+  const wordEntry = {
+    id: Date.now(),
+    word: word,
+    date: new Date().toISOString(),
+  };
+
+  chrome.storage.local.get({ words: [] }, (data) => {
+    const words = data.words;
+    // Avoid duplicates
+    if (!words.some((w) => w.word.toLowerCase() === word.toLowerCase())) {
+      words.push(wordEntry);
+      chrome.storage.local.set({ words: words });
+    }
+  });
+}
 
 function toggleHighlight(el) {
   if (el.style.backgroundColor) {
@@ -143,7 +168,7 @@ function deleteHighlight(highlightSpan) {
     let highlights = data.highlights;
     if (highlights[url]) {
       highlights[url] = highlights[url].filter(
-        (h) => h.groupID.toString() !== groupId
+        (h) => h.groupID.toString() !== groupId,
       );
       if (highlights[url].length === 0) {
         delete highlights[url];
@@ -151,13 +176,13 @@ function deleteHighlight(highlightSpan) {
     }
     chrome.storage.local.set({ highlights: highlights }, () => {
       const spans = document.querySelectorAll(
-        `.text-highlighter-highlight[data-group-id='${groupId}']`
+        `.text-highlighter-highlight[data-group-id='${groupId}']`,
       );
       spans.forEach((span) => {
         const parent = span.parentNode;
         parent.replaceChild(
           document.createTextNode(span.textContent.slice(0, -1)),
-          span
+          span,
         );
       });
     });
@@ -209,7 +234,7 @@ async function reapplyHighlightSequence(highlight) {
 
   // 1) Linearize all eligible text
   const { textNodes, bigText, cumLengths, nodeToIndex } = collectTextStream(
-    document.body
+    document.body,
   );
 
   // 2) Search for the full sequence (contiguous, in order)
@@ -234,7 +259,7 @@ async function reapplyHighlightSequence(highlight) {
   // Optional: skip if everything is already highlighted
   if (
     chunkBoundaries.every(({ startPos, endPos }) =>
-      isWithinSameHighlight(startPos.node, endPos.node)
+      isWithinSameHighlight(startPos.node, endPos.node),
     )
   ) {
     return;
@@ -365,7 +390,7 @@ function wrapChunkByTextNodes({
     textNodes[iStart],
     startOffset,
     textNodes[iStart].nodeValue.length,
-    groupId
+    groupId,
   );
 
   // Middle nodes: whole text
