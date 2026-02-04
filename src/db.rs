@@ -2,7 +2,7 @@ use crate::config::Config;
 use crate::handler::HandlerParams;
 use crate::model::*;
 use anyhow::Result;
-use libsql::{Builder, Connection, Database as LibsqlDatabase};
+use libsql::{Builder, Connection, Database as LibsqlDatabase, SyncProtocol};
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::path::Path;
@@ -111,10 +111,12 @@ impl Database {
 
         let db = match (&turso_url, &turso_auth_token) {
             (Some(url), Some(token)) => {
+                tracing::info!("[db] running in replica mode");
                 let sync_interval = Duration::from_secs(cfg.app.sync_interval_seconds);
                 Builder::new_remote_replica(&path, url.clone(), token.clone())
                     .sync_interval(sync_interval)
                     .read_your_writes(true)
+                    .sync_protocol(SyncProtocol::V2)
                     .build()
                     .await?
             }
