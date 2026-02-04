@@ -10,8 +10,8 @@ use bibliotek::assets::serve_embedded;
 use bibliotek::commonplace;
 use bibliotek::db::Database;
 use bibliotek::handler::{
-    AppState, abort_upload, create_author, create_category, create_tag, get_books, get_download_url,
-    get_metadata, get_pending_uploads, healthcheck, update_book, upload,
+    AppState, abort_upload, create_author, create_category, create_tag, get_books, get_download_url, get_metadata,
+    get_pending_uploads, healthcheck, update_book, upload,
 };
 use bibliotek::light;
 use bibliotek::research;
@@ -28,6 +28,7 @@ use tracing;
 
 #[tokio::main]
 async fn main() {
+    dotenvy::dotenv().ok();
     let args = Cli::parse();
 
     // Determine config path and data directory
@@ -61,7 +62,7 @@ async fn main() {
         tracing::error!(error = %e, path = ?config_path, "failed to load config file");
         std::process::exit(1);
     });
-    let db = Arc::new(Database::new(&cfg, &data_dir).await.unwrap_or_else(|e| {
+    let db = Arc::new(Database::new(&cfg).await.unwrap_or_else(|e| {
         tracing::error!(error = %e, "failed to setup database");
         std::process::exit(1);
     }));

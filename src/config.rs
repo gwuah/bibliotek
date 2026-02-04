@@ -25,11 +25,21 @@ pub fn default_config_path() -> PathBuf {
     default_config_dir().join("config.yaml")
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default, Clone)]
 pub struct App {
     database: String,
     bucket: String,
     port: i32,
+    #[serde(default)]
+    pub turso_url: Option<String>,
+    #[serde(default)]
+    pub turso_auth_token: Option<String>,
+    #[serde(default = "default_sync_interval")]
+    pub sync_interval_seconds: u64,
+}
+
+fn default_sync_interval() -> u64 {
+    60
 }
 
 #[derive(Debug, Deserialize, Default)]

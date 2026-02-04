@@ -2,10 +2,16 @@ use crate::config::Config;
 use crate::handler::HandlerParams;
 use crate::model::*;
 use anyhow::Result;
-use libsql::{Builder, Connection};
+use libsql::{Builder, Connection, Database as LibsqlDatabase};
 use serde::{Deserialize, Serialize};
+use std::env;
 use std::path::Path;
+use std::time::Duration;
 use tokio::sync::Mutex;
+
+fn get_home_dir() -> Result<String> {
+    Ok(env::var("HOME")?)
+}
 
 const SYSTEM_MIGRATIONS: &[(&str, &str)] =
     &[("system/000_migrations_table.sql", include_str!("migrations/system/000_migrations_table.sql"))];
@@ -25,13 +31,30 @@ pub struct MetadataAggregate {
 }
 
 pub struct Database {
+    db: LibsqlDatabase,
     conn: Connection,
     tx_lock: Mutex<()>,
+    turso_url: Option<String>,
+    turso_auth_token: Option<String>,
 }
 
 impl Database {
     pub fn connection(&self) -> &Connection {
         &self.conn
+    }
+
+    pub fn is_replica(turso_url: &Option<String>, turso_auth_token: &Option<String>) -> bool {
+        turso_url.is_some() && turso_auth_token.is_some()
+    }
+
+    pub async fn sync(&self) -> Result<()> {
+        if Self::is_replica(&self.turso_url, &self.turso_auth_token) {
+            self.db
+                .sync()
+                .await
+                .map_err(|e| anyhow::anyhow!("sync failed: {}", e))?;
+        }
+        Ok(())
     }
 
     async fn is_migration_applied(conn: &Connection, name: &str) -> Result<bool> {
@@ -80,14 +103,26 @@ impl Database {
         Ok(())
     }
 
-    pub async fn new(cfg: &Config, data_dir: &Path) -> Result<Self> {
-        let path = data_dir.join(cfg.app.get_db());
-        let conn = Builder::new_local(path).build().await?.connect()?;
-        let _ = conn
-            .query("SELECT 1", ())
-            .await
-            .map_err(|e| anyhow::anyhow!("failed to connect to database: {e}"))?;
-        tracing::debug!("established connection to db!");
+    pub async fn new(cfg: &Config) -> Result<Self> {
+        let base_dir = env::var("MONO_DATA_DIR").unwrap_or_else(|_| get_home_dir().unwrap());
+        let path = Path::new(&base_dir).join(cfg.app.get_db());
+        let turso_url = cfg.app.turso_url.clone();
+        let turso_auth_token = cfg.app.turso_auth_token.clone();
+
+        let db = match (&turso_url, &turso_auth_token) {
+            (Some(url), Some(token)) => {
+                tracing::info!("[db] running in synced database mode (offline writes)");
+                let sync_interval = Duration::from_secs(cfg.app.sync_interval_seconds);
+                Builder::new_synced_database(&path, url.clone(), token.clone())
+                    .sync_interval(sync_interval)
+                    .build()
+                    .await?
+            }
+            _ => Builder::new_local(&path).build().await?,
+        };
+
+        let conn = db.connect()?;
+        conn.query("SELECT 1", ()).await?;
 
         for (filename, sql) in SYSTEM_MIGRATIONS {
             Self::run_migration(&conn, filename, sql).await?;
@@ -105,14 +140,13 @@ impl Database {
             Self::run_migration(&conn, filename, sql).await?;
         }
 
-        tracing::info!("db migrations complete");
-
-        let instance = Database {
+        Ok(Database {
+            db,
             conn,
             tx_lock: Mutex::new(()),
-        };
-
-        Ok(instance)
+            turso_url,
+            turso_auth_token,
+        })
     }
 
     fn split_comma_separated_string(s: String) -> Vec<String> {
@@ -124,18 +158,18 @@ impl Database {
 
     pub async fn get_books(&self, params: HandlerParams) -> Result<Vec<Book>> {
         let last_n_books = r#"
-SELECT 
-    books.id as book_id, 
-    books.title, 
-    books.url, 
-    books.cover_url, 
+SELECT
+    books.id as book_id,
+    books.title,
+    books.url,
+    books.cover_url,
     books.ratings,
     books.description,
     books.pages,
     GROUP_CONCAT(DISTINCT CAST(authors.id AS TEXT)) as author_ids,
     GROUP_CONCAT(DISTINCT CAST(tags.id AS TEXT)) as tag_ids,
     GROUP_CONCAT(DISTINCT CAST(categories.id AS TEXT)) as category_ids
-FROM books 
+FROM books
 LEFT JOIN book_authors ON book_authors.book_id = books.id
 LEFT JOIN authors ON authors.id = book_authors.author_id
 LEFT JOIN book_tags ON book_tags.book_id = books.id
@@ -148,18 +182,18 @@ LIMIT ? OFFSET ?
 "#;
 
         let search_books = r#"
-SELECT 
-    books.id as book_id, 
-    books.title, 
-    books.url, 
-    books.cover_url, 
+SELECT
+    books.id as book_id,
+    books.title,
+    books.url,
+    books.cover_url,
     books.ratings,
     books.description,
     books.pages,
     GROUP_CONCAT(DISTINCT CAST(authors.id AS TEXT)) as author_ids,
     GROUP_CONCAT(DISTINCT CAST(tags.id AS TEXT)) as tag_ids,
     GROUP_CONCAT(DISTINCT CAST(categories.id AS TEXT)) as category_ids
-FROM books 
+FROM books
 LEFT JOIN book_authors ON book_authors.book_id = books.id
 LEFT JOIN authors ON authors.id = book_authors.author_id
 LEFT JOIN book_tags ON book_tags.book_id = books.id
@@ -228,38 +262,38 @@ LIMIT ? OFFSET ?
 
     pub async fn get_metadata_aggregates(&self) -> Result<MetadataAggregate> {
         let query = r#"
-WITH 
+WITH
 author_count AS (
-    SELECT authors.id, authors.name, COUNT(book_authors.id) as count 
-    FROM authors 
+    SELECT authors.id, authors.name, COUNT(book_authors.id) as count
+    FROM authors
     LEFT JOIN book_authors ON authors.id = book_authors.author_id
     GROUP BY authors.id, authors.name
 ),
 category_count AS (
-    SELECT categories.id, categories.name, COUNT(book_categories.id) as count 
-    FROM categories 
+    SELECT categories.id, categories.name, COUNT(book_categories.id) as count
+    FROM categories
     LEFT JOIN book_categories ON categories.id = book_categories.category_id
     GROUP BY categories.id, categories.name
 ),
 tag_count AS (
-    SELECT tags.id, tags.name, COUNT(book_tags.id) as count 
-    FROM tags 
+    SELECT tags.id, tags.name, COUNT(book_tags.id) as count
+    FROM tags
     LEFT JOIN book_tags ON tags.id = book_tags.tag_id
     GROUP BY tags.id, tags.name
 ),
 ratings_count AS (
-SELECT 
-    ROW_NUMBER() OVER (ORDER BY ratings) as id, 
-    cast(ratings as TEXT) as name, 
-    COUNT(*) as count 
-FROM books 
-WHERE ratings IS NOT NULL 
-GROUP BY ratings 
+SELECT
+    ROW_NUMBER() OVER (ORDER BY ratings) as id,
+    cast(ratings as TEXT) as name,
+    COUNT(*) as count
+FROM books
+WHERE ratings IS NOT NULL
+GROUP BY ratings
 ORDER BY ratings DESC
 )
 SELECT 'author' as type, id, name, count FROM author_count
 UNION ALL
-SELECT 'category' as type, id, name, count FROM category_count  
+SELECT 'category' as type, id, name, count FROM category_count
 UNION ALL
 SELECT 'tag' as type, id, name, count FROM tag_count
 UNION ALL
@@ -318,18 +352,18 @@ ORDER BY type, count DESC;
 
     pub async fn get_book_by_id(&self, book_id: i32) -> Result<Option<Book>> {
         let query = r#"
-SELECT 
-    books.id as book_id, 
-    books.title, 
-    books.url, 
-    books.cover_url, 
+SELECT
+    books.id as book_id,
+    books.title,
+    books.url,
+    books.cover_url,
     books.ratings,
     books.description,
     books.pages,
     GROUP_CONCAT(DISTINCT CAST(authors.id AS TEXT)) as author_ids,
     GROUP_CONCAT(DISTINCT CAST(tags.id AS TEXT)) as tag_ids,
     GROUP_CONCAT(DISTINCT CAST(categories.id AS TEXT)) as category_ids
-FROM books 
+FROM books
 LEFT JOIN book_authors ON book_authors.book_id = books.id
 LEFT JOIN authors ON authors.id = book_authors.author_id
 LEFT JOIN book_tags ON book_tags.book_id = books.id

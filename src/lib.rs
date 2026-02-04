@@ -37,7 +37,7 @@ fn good_response(body: APIResponse) -> Response {
     (StatusCode::OK, Json(body)).into_response()
 }
 
-pub fn unpack_error(err: &(dyn Error)) -> String {
+pub fn unpack_error(err: &dyn Error) -> String {
     let mut parts = Vec::new();
     parts.push(err.to_string());
     let mut current = err.source();
