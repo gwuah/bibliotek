@@ -2,7 +2,7 @@ use crate::config::Config;
 use crate::handler::HandlerParams;
 use crate::model::*;
 use anyhow::Result;
-use libsql::{Builder, Connection, Database as LibsqlDatabase, SyncProtocol};
+use libsql::{Builder, Connection, Database as LibsqlDatabase};
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::path::Path;
@@ -111,12 +111,10 @@ impl Database {
 
         let db = match (&turso_url, &turso_auth_token) {
             (Some(url), Some(token)) => {
-                tracing::info!("[db] running in replica mode");
+                tracing::info!("[db] running in synced database mode (offline writes)");
                 let sync_interval = Duration::from_secs(cfg.app.sync_interval_seconds);
-                Builder::new_remote_replica(&path, url.clone(), token.clone())
+                Builder::new_synced_database(&path, url.clone(), token.clone())
                     .sync_interval(sync_interval)
-                    .read_your_writes(true)
-                    .sync_protocol(SyncProtocol::V2)
                     .build()
                     .await?
             }
@@ -125,12 +123,6 @@ impl Database {
 
         let conn = db.connect()?;
         conn.query("SELECT 1", ()).await?;
-
-        if Self::is_replica(&turso_url, &turso_auth_token) {
-            if let Err(e) = db.sync().await {
-                tracing::warn!("initial sync failed, continuing with local data: {}", e);
-            }
-        }
 
         for (filename, sql) in SYSTEM_MIGRATIONS {
             Self::run_migration(&conn, filename, sql).await?;
@@ -146,12 +138,6 @@ impl Database {
 
         for (filename, sql) in crate::research::migrations() {
             Self::run_migration(&conn, filename, sql).await?;
-        }
-
-        if Self::is_replica(&turso_url, &turso_auth_token) {
-            if let Err(e) = db.sync().await {
-                tracing::warn!("post-migration sync failed, continuing with local data: {}", e);
-            }
         }
 
         Ok(Database {
