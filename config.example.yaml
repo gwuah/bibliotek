@@ -2,6 +2,9 @@ app:
   database: bibliotek.db
   bucket: bibliotek-test
   port: 5678
+  turso_url: # optional, for turso replication
+  turso_auth_token: # optional, for turso replication
+  sync_interval_seconds: 60 # optional, defaults to 60
 
 storage:
   aws_access_key_id: YOUR_ACCESS_KEY
