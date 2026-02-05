@@ -79,6 +79,7 @@ input[type="file"]::-moz-file-upload-button {
 body {
   font-family: et-book, Palatino, "Palatino Linotype", "Palatino LT STD",
     "Book Antiqua", Georgia, serif;
+  font-size: 20px;
 }
 
 .bcontainer {
@@ -991,7 +992,7 @@ img {
 }
 
 .research-annotation-text {
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.6;
 }
 
@@ -1016,7 +1017,7 @@ img {
 
 .research-page-number {
   display: inline-block;
-  font-size: 12px;
+  font-size: 14px;
   color: #666;
   background: #f5f5f5;
   padding: 2px 6px;
@@ -1028,7 +1029,7 @@ img {
   border: none;
   padding: 4px 0;
   font-family: inherit;
-  font-size: 12px;
+  font-size: 14px;
   color: #666;
   cursor: pointer;
   margin-top: 8px;
@@ -1048,7 +1049,7 @@ img {
   padding: 8px 12px;
   background: #f9f9f9;
   margin-bottom: 8px;
-  font-size: 13px;
+  font-size: 16px;
   line-height: 1.5;
 }
 
@@ -1104,7 +1105,7 @@ img {
 
 .research-annotations-column .research-section h3 {
   margin: 0 0 12px 0;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   color: #666;
   text-transform: uppercase;
@@ -1121,7 +1122,7 @@ img {
   background: none;
   border: 1px solid #ccc;
   padding: 8px 12px;
-  font-size: 13px;
+  font-size: 15px;
   cursor: pointer;
   white-space: nowrap;
   color: #666;
@@ -1140,7 +1141,7 @@ img {
 .research-notes-column .research-note {
   padding: 12px;
   border-top: 1px solid #eee;
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .research-notes-column .research-note:first-child {
@@ -1149,7 +1150,7 @@ img {
 
 .research-notes-empty {
   padding: 16px;
-  font-size: 13px;
+  font-size: 15px;
   color: #888;
   font-style: italic;
   border: 1px solid #ccc;
@@ -1163,7 +1164,7 @@ img {
 
 .research-chapter-sidebar h3 {
   margin: 0 0 12px 0;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   color: #666;
   text-transform: uppercase;
@@ -1194,7 +1195,7 @@ img {
 }
 
 .research-chapter-item-title {
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.4;
 }
 
@@ -1203,13 +1204,13 @@ img {
 }
 
 .research-chapter-item-meta {
-  font-size: 12px;
+  font-size: 14px;
   color: #888;
   margin-top: 2px;
 }
 
 .research-chapter-empty {
-  font-size: 13px;
+  font-size: 15px;
   color: #888;
   font-style: italic;
   margin-bottom: 12px;
