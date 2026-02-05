@@ -983,8 +983,6 @@ img {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  /* border: 1px solid #ccc; */
-  padding: 16px;
 }
 
 .research-annotation {
@@ -1078,4 +1076,195 @@ img {
   text-align: center;
   color: #999;
   font-style: italic;
+}
+
+/* ============================================================================
+   Chapter Sidebar and Editor
+   ============================================================================ */
+
+/* 3-column layout: TOC 30% | Annotations 30% | Notes 40% */
+.research-detail-layout {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.research-toc-column {
+  flex: 0 0 20%;
+  position: sticky;
+  top: 20px;
+}
+
+.research-annotations-column {
+  flex: 0 0 40%;
+  min-width: 0;
+  border: 1px solid #ccc;
+  padding: 16px;
+}
+
+.research-annotations-column .research-section h3 {
+  margin: 0 0 12px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.research-notes-column {
+  flex: 1;
+  position: sticky;
+  top: 20px;
+}
+
+.research-notes-toggle {
+  background: none;
+  border: 1px solid #ccc;
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  color: #666;
+}
+
+.research-notes-toggle:hover {
+  background: #f5f5f5;
+  border-color: #999;
+}
+
+.research-notes-column .research-notes {
+  border: 1px solid #ccc;
+  border-top: none;
+}
+
+.research-notes-column .research-note {
+  padding: 12px;
+  border-top: 1px solid #eee;
+  font-size: 13px;
+}
+
+.research-notes-column .research-note:first-child {
+  border-top: none;
+}
+
+.research-notes-empty {
+  padding: 16px;
+  font-size: 13px;
+  color: #888;
+  font-style: italic;
+  border: 1px solid #ccc;
+  border-top: none;
+}
+
+.research-chapter-sidebar {
+  border: 1px solid #ccc;
+  padding: 16px;
+}
+
+.research-chapter-sidebar h3 {
+  margin: 0 0 12px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.research-chapter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+.research-chapter-item {
+  padding: 8px 10px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.15s ease;
+}
+
+.research-chapter-item:hover {
+  background: #f5f5f5;
+}
+
+.research-chapter-item.selected {
+  background: #f5f5f5;
+  border-color: #ccc;
+}
+
+.research-chapter-item-title {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.research-chapter-marker {
+  color: #333;
+}
+
+.research-chapter-item-meta {
+  font-size: 12px;
+  color: #888;
+  margin-top: 2px;
+}
+
+.research-chapter-empty {
+  font-size: 13px;
+  color: #888;
+  font-style: italic;
+  margin-bottom: 12px;
+}
+
+.research-chapter-edit-btn {
+  width: 100%;
+  margin-top: 8px;
+}
+
+/* Chapter Editor */
+.research-chapter-editor {
+  border: 1px solid #ccc;
+  padding: 16px;
+  margin-bottom: 24px;
+}
+
+.research-chapter-editor h4 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.research-chapter-help {
+  font-size: 12px;
+  color: #666;
+  margin: 0 0 12px 0;
+  font-family: monospace;
+}
+
+.research-chapter-textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  font-family: monospace;
+  font-size: 13px;
+  line-height: 1.4;
+  resize: vertical;
+  min-height: 150px;
+}
+
+.research-chapter-textarea:focus {
+  outline: none;
+  border-color: #666;
+}
+
+.research-chapter-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.research-chapter-page-range {
+  font-size: 12px;
+  color: #888;
+  margin: 0 0 12px 0;
 }

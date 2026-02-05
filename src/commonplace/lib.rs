@@ -59,6 +59,15 @@ impl ResourceType {
     }
 }
 
+/// Resource configuration stored as JSON
+/// For PDFs, this can contain chapter boundaries
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ResourceConfig {
+    /// Chapters mapping: key is chapter number, value is [title, start_page, end_page]
+    #[serde(default)]
+    pub chapters: std::collections::HashMap<String, (String, i32, i32)>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Resource {
     pub id: i32,
@@ -67,6 +76,7 @@ pub struct Resource {
     pub resource_type: ResourceType,
     pub external_id: Option<String>,
     pub content_hash: Option<String>,
+    pub config: Option<ResourceConfig>,
     pub deleted_at: Option<String>,
     pub created_at: String,
     pub updated_at: String,
@@ -183,6 +193,7 @@ pub struct UpdateResource {
     #[serde(rename = "type")]
     pub resource_type: Option<ResourceType>,
     pub content_hash: Option<String>,
+    pub config: Option<ResourceConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -257,7 +268,7 @@ impl<'a> Commonplace<'a> {
         let query = r#"
             INSERT INTO resources (title, type, external_id, content_hash)
             VALUES (?, ?, ?, ?)
-            RETURNING id, title, type, external_id, content_hash, deleted_at, created_at, updated_at
+            RETURNING id, title, type, external_id, content_hash, config, deleted_at, created_at, updated_at
         "#;
 
         let mut rows = self
@@ -282,7 +293,7 @@ impl<'a> Commonplace<'a> {
 
     pub async fn get_resource(&self, id: i32) -> Result<Option<Resource>> {
         let query = r#"
-            SELECT id, title, type, external_id, content_hash, deleted_at, created_at, updated_at
+            SELECT id, title, type, external_id, content_hash, config, deleted_at, created_at, updated_at
             FROM resources WHERE id = ? AND deleted_at IS NULL
         "#;
         self.query_one(query, libsql::params![id], |row| self.row_to_resource(row))
@@ -291,7 +302,7 @@ impl<'a> Commonplace<'a> {
 
     pub async fn find_resource_by_title(&self, title: &str) -> Result<Option<Resource>> {
         let query = r#"
-            SELECT id, title, type, external_id, content_hash, deleted_at, created_at, updated_at
+            SELECT id, title, type, external_id, content_hash, config, deleted_at, created_at, updated_at
             FROM resources WHERE title = ? AND deleted_at IS NULL
         "#;
         self.query_one(query, libsql::params![title], |row| self.row_to_resource(row))
@@ -300,7 +311,7 @@ impl<'a> Commonplace<'a> {
 
     pub async fn find_resource_by_external_id(&self, external_id: &str) -> Result<Option<Resource>> {
         let query = r#"
-            SELECT id, title, type, external_id, content_hash, deleted_at, created_at, updated_at
+            SELECT id, title, type, external_id, content_hash, config, deleted_at, created_at, updated_at
             FROM resources WHERE external_id = ? AND deleted_at IS NULL
         "#;
         self.query_one(query, libsql::params![external_id], |row| self.row_to_resource(row))
@@ -309,7 +320,7 @@ impl<'a> Commonplace<'a> {
 
     pub async fn find_resources_by_source_prefix(&self, prefix: &str) -> Result<Vec<Resource>> {
         let query = r#"
-            SELECT id, title, type, external_id, content_hash, deleted_at, created_at, updated_at
+            SELECT id, title, type, external_id, content_hash, config, deleted_at, created_at, updated_at
             FROM resources WHERE external_id LIKE ? AND deleted_at IS NULL
         "#;
 
@@ -329,7 +340,7 @@ impl<'a> Commonplace<'a> {
 
         if let Some(rtype) = resource_type {
             let query = r#"
-                SELECT id, title, type, external_id, content_hash, deleted_at, created_at, updated_at
+                SELECT id, title, type, external_id, content_hash, config, deleted_at, created_at, updated_at
                 FROM resources
                 WHERE type = ? AND deleted_at IS NULL
                 ORDER BY created_at DESC
@@ -343,7 +354,7 @@ impl<'a> Commonplace<'a> {
             }
         } else {
             let query = r#"
-                SELECT id, title, type, external_id, content_hash, deleted_at, created_at, updated_at
+                SELECT id, title, type, external_id, content_hash, config, deleted_at, created_at, updated_at
                 FROM resources
                 WHERE deleted_at IS NULL
                 ORDER BY created_at DESC
@@ -380,6 +391,11 @@ impl<'a> Commonplace<'a> {
             updates.push("content_hash = ?");
             params.push(content_hash.clone().into());
         }
+        if let Some(config) = &input.config {
+            updates.push("config = ?");
+            let json_str = serde_json::to_string(config)?;
+            params.push(json_str.into());
+        }
 
         if updates.is_empty() {
             return self.get_resource(id).await;
@@ -407,15 +423,20 @@ impl<'a> Commonplace<'a> {
         let resource_type =
             ResourceType::from_str(&type_str).ok_or_else(|| anyhow::anyhow!("Invalid resource type: {}", type_str))?;
 
+        // Parse config JSON if present
+        let config_str: Option<String> = row.get(5)?;
+        let config = config_str.map(|s| serde_json::from_str(&s)).transpose()?;
+
         Ok(Resource {
             id: row.get(0)?,
             title: row.get(1)?,
             resource_type,
             external_id: row.get(3)?,
             content_hash: row.get(4)?,
-            deleted_at: row.get(5)?,
-            created_at: row.get(6)?,
-            updated_at: row.get(7)?,
+            config,
+            deleted_at: row.get(6)?,
+            created_at: row.get(7)?,
+            updated_at: row.get(8)?,
         })
     }
 

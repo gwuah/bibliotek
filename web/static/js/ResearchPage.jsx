@@ -210,7 +210,7 @@ function AnnotationItem({ annotation }) {
 
 function groupAnnotationsByPage(annotations) {
   const groups = {}
-  
+
   for (const ann of annotations) {
     const page = ann.boundary?.pageNumber ?? 'No Page'
     if (!groups[page]) {
@@ -218,24 +218,178 @@ function groupAnnotationsByPage(annotations) {
     }
     groups[page].push(ann)
   }
-  
+
   const sortedPages = Object.keys(groups).sort((a, b) => {
     if (a === 'No Page') return 1
     if (b === 'No Page') return -1
     return Number(a) - Number(b)
   })
-  
+
   return sortedPages.map(page => ({
     page,
     annotations: groups[page]
   }))
 }
 
+// Parse chapters from config and sort by chapter number
+function parseChapters(config) {
+  if (!config?.chapters) return []
+
+  return Object.entries(config.chapters)
+    .map(([key, [title, startPage, endPage]]) => ({
+      key,
+      title,
+      startPage,
+      endPage
+    }))
+    .sort((a, b) => Number(a.key) - Number(b.key))
+}
+
+// Get annotations for a specific chapter (by page range)
+function getAnnotationsForChapter(annotations, chapter) {
+  return annotations.filter(ann => {
+    const page = ann.boundary?.pageNumber
+    if (page == null) return false
+    return page >= chapter.startPage && page <= chapter.endPage
+  })
+}
+
+// Count annotations per chapter
+function getChapterAnnotationCounts(annotations, chapters) {
+  const counts = {}
+  for (const chapter of chapters) {
+    counts[chapter.key] = getAnnotationsForChapter(annotations, chapter).length
+  }
+  return counts
+}
+
+function ChapterEditor({ config, onSave, onCancel, saving }) {
+  const [json, setJson] = useState('')
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    // Initialize with current chapters or empty object
+    const chapters = config?.chapters || {}
+    setJson(JSON.stringify(chapters, null, 2))
+  }, [config])
+
+  const handleSave = () => {
+    setError(null)
+    try {
+      const parsed = JSON.parse(json)
+      // Validate structure
+      for (const [key, value] of Object.entries(parsed)) {
+        if (!Array.isArray(value) || value.length !== 3) {
+          throw new Error(`Chapter "${key}" must be [title, startPage, endPage]`)
+        }
+        if (typeof value[0] !== 'string') {
+          throw new Error(`Chapter "${key}" title must be a string`)
+        }
+        if (typeof value[1] !== 'number' || typeof value[2] !== 'number') {
+          throw new Error(`Chapter "${key}" pages must be numbers`)
+        }
+      }
+      onSave({ chapters: parsed })
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  return (
+    <div className="research-chapter-editor">
+      <h4>Chapter Boundaries</h4>
+      <p className="research-chapter-help">
+        Format: {"{"}"1": ["Title", startPage, endPage], ...{"}"}
+      </p>
+      <textarea
+        value={json}
+        onChange={(e) => setJson(e.target.value)}
+        className="research-chapter-textarea"
+        rows={10}
+        spellCheck={false}
+      />
+      {error && <p className="research-error">{error}</p>}
+      <div className="research-chapter-actions">
+        <button onClick={onCancel} className="research-btn research-btn-secondary">
+          Cancel
+        </button>
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="research-btn research-btn-primary"
+        >
+          {saving ? 'Saving...' : 'Save'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function ChapterSidebar({ chapters, annotationCounts, selectedChapter, onSelectChapter, onEditChapters }) {
+  if (chapters.length === 0) {
+    return (
+      <div className="research-chapter-sidebar">
+        <h3>Chapters</h3>
+        <p className="research-chapter-empty">No chapters defined</p>
+        <button onClick={onEditChapters} className="research-btn research-btn-secondary">
+          + Add Chapters
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="research-chapter-sidebar">
+      <h3>Chapters</h3>
+      <div className="research-chapter-list">
+        {chapters.map((chapter) => (
+          <div
+            key={chapter.key}
+            className={`research-chapter-item ${selectedChapter === chapter.key ? 'selected' : ''}`}
+            onClick={() => onSelectChapter(chapter.key)}
+          >
+            <div className="research-chapter-item-title">
+              {selectedChapter === chapter.key && <span className="research-chapter-marker">▶ </span>}
+              {chapter.title}
+            </div>
+            <div className="research-chapter-item-meta">
+              ({chapter.startPage}-{chapter.endPage}) · {annotationCounts[chapter.key] || 0}
+            </div>
+          </div>
+        ))}
+      </div>
+      <button onClick={onEditChapters} className="research-btn research-btn-secondary research-chapter-edit-btn">
+        Edit Chapters
+      </button>
+    </div>
+  )
+}
+
+// Read chapter from URL hash
+function getChapterFromHash() {
+  const hash = window.location.hash
+  if (hash && hash.startsWith('#chapter-')) {
+    return hash.replace('#chapter-', '')
+  }
+  return null
+}
+
 function ResourceDetail({ resourceId, onBack }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
+  const [savingConfig, setSavingConfig] = useState(false)
+  const [editingChapters, setEditingChapters] = useState(false)
+  const [selectedChapter, setSelectedChapter] = useState(getChapterFromHash)
+  const [showNotes, setShowNotes] = useState(true)
   const [error, setError] = useState(null)
+
+  // Update URL hash when chapter changes
+  useEffect(() => {
+    if (selectedChapter) {
+      window.history.replaceState(null, '', `#chapter-${selectedChapter}`)
+    }
+  }, [selectedChapter])
 
   useEffect(() => {
     loadResourceFull()
@@ -249,6 +403,16 @@ function ResourceDetail({ resourceId, onBack }) {
       if (res.ok) {
         const result = await res.json()
         setData(result.data)
+        // Select chapter from URL hash, or first chapter by default
+        const chapters = parseChapters(result.data?.config)
+        const hashChapter = getChapterFromHash()
+        if (chapters.length > 0 && !selectedChapter) {
+          if (hashChapter && chapters.some(c => c.key === hashChapter)) {
+            setSelectedChapter(hashChapter)
+          } else {
+            setSelectedChapter(chapters[0].key)
+          }
+        }
       } else {
         setError('Resource not found')
       }
@@ -273,6 +437,31 @@ function ResourceDetail({ resourceId, onBack }) {
     }
   }
 
+  const handleSaveConfig = async (newConfig) => {
+    setSavingConfig(true)
+    try {
+      const res = await fetch(`/commonplace/resources/${resourceId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config: newConfig })
+      })
+      if (res.ok) {
+        const result = await res.json()
+        setData(prev => ({ ...prev, config: result.data.config }))
+        setEditingChapters(false)
+        // Select first chapter if we just added chapters
+        const chapters = parseChapters(result.data.config)
+        if (chapters.length > 0) {
+          setSelectedChapter(chapters[0].key)
+        }
+      }
+    } catch (err) {
+      console.error('Failed to save config:', err)
+    } finally {
+      setSavingConfig(false)
+    }
+  }
+
   if (loading) {
     return <div className="research-loading">Loading...</div>
   }
@@ -290,6 +479,17 @@ function ResourceDetail({ resourceId, onBack }) {
 
   const hasNotes = data?.notes && data.notes.length > 0
   const hasAnnotations = data?.annotations && data.annotations.length > 0
+  const chapters = parseChapters(data?.config)
+  const hasChapters = chapters.length > 0
+  const annotationCounts = hasAnnotations ? getChapterAnnotationCounts(data.annotations, chapters) : {}
+
+  // Get annotations to display (filtered by chapter if selected)
+  const selectedChapterData = hasChapters && selectedChapter
+    ? chapters.find(c => c.key === selectedChapter)
+    : null
+  const displayAnnotations = selectedChapterData
+    ? getAnnotationsForChapter(data?.annotations || [], selectedChapterData)
+    : data?.annotations || []
 
   return (
     <div className="research-detail">
@@ -308,32 +508,41 @@ function ResourceDetail({ resourceId, onBack }) {
           </button>
         </div>
       </div>
-      
-      {(!hasNotes && !hasAnnotations) ? (
-        <p className="research-empty">No annotations or notes for this resource.</p>
-      ) : (
-        <div className="research-detail-columns">
-          <div className="research-detail-col">
-            {hasNotes && (
-              <div className="research-section">
-                <h3>Notes ({data.notes.length})</h3>
-                <div className="research-notes">
-                  {data.notes.map((note) => (
-                    <div key={note.id} className="research-note">
-                      <div dangerouslySetInnerHTML={{ __html: note.content }} />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+
+      {editingChapters && (
+        <ChapterEditor
+          config={data?.config}
+          onSave={handleSaveConfig}
+          onCancel={() => setEditingChapters(false)}
+          saving={savingConfig}
+        />
+      )}
+
+      {!editingChapters && (
+        <div className="research-detail-layout">
+          {/* Left: Chapter Sidebar */}
+          <div className="research-toc-column">
+            <ChapterSidebar
+              chapters={chapters}
+              annotationCounts={annotationCounts}
+              selectedChapter={selectedChapter}
+              onSelectChapter={setSelectedChapter}
+              onEditChapters={() => setEditingChapters(true)}
+            />
           </div>
-          
-          <div className="research-detail-col">
-            {hasAnnotations && (
+
+          {/* Center: Annotations */}
+          <div className="research-annotations-column">
+            {hasAnnotations ? (
               <div className="research-section">
-                <h3>Annotations ({data.annotations.length})</h3>
+                <h3>
+                  {selectedChapterData
+                    ? `${selectedChapterData.title} (${displayAnnotations.length})`
+                    : `Annotations (${data.annotations.length})`
+                  }
+                </h3>
                 <div className="research-annotations">
-                  {groupAnnotationsByPage(data.annotations).map((group) => (
+                  {groupAnnotationsByPage(displayAnnotations).map((group) => (
                     <div key={group.page} className="research-page-group">
                       <div className="research-page-header">
                         <span className="research-page-number">
@@ -345,8 +554,36 @@ function ResourceDetail({ resourceId, onBack }) {
                       ))}
                     </div>
                   ))}
+                  {displayAnnotations.length === 0 && (
+                    <p className="research-empty">No annotations in this chapter.</p>
+                  )}
                 </div>
               </div>
+            ) : (
+              <p className="research-empty">No annotations for this resource.</p>
+            )}
+          </div>
+
+          {/* Right: Notes (collapsible) */}
+          <div className={`research-notes-column ${showNotes ? 'expanded' : 'collapsed'}`}>
+            <button
+              className="research-notes-toggle"
+              onClick={() => setShowNotes(!showNotes)}
+              title={showNotes ? 'Hide notes' : 'Show notes'}
+            >
+              {showNotes ? '▶' : '◀'} Notes {hasNotes && `(${data.notes.length})`}
+            </button>
+            {showNotes && hasNotes && (
+              <div className="research-notes">
+                {data.notes.map((note) => (
+                  <div key={note.id} className="research-note">
+                    <div dangerouslySetInnerHTML={{ __html: note.content }} />
+                  </div>
+                ))}
+              </div>
+            )}
+            {showNotes && !hasNotes && (
+              <p className="research-notes-empty">No notes</p>
             )}
           </div>
         </div>

@@ -376,6 +376,7 @@ async fn update_resource(
                 title: Some(title.to_string()),
                 resource_type: None,
                 content_hash: Some(content_hash.to_string()),
+                config: None,
             },
         )
         .await;
