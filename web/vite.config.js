@@ -33,6 +33,7 @@ export default defineConfig({
       "/commonplace": apiProxy,
       "/light": apiProxy,
       "/research": apiProxy,
+      "/download": apiProxy,
     },
   },
 });

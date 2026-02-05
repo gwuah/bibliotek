@@ -1094,10 +1094,19 @@ img {
   flex: 0 0 20%;
   position: sticky;
   top: 20px;
+  transition: flex-basis 0.2s ease;
+}
+
+.research-toc-column.collapsed {
+  flex: 0 0 auto;
+}
+
+.research-chapter-sidebar.collapsed {
+  padding: 8px;
 }
 
 .research-annotations-column {
-  flex: 0 0 40%;
+  flex: 1;
   min-width: 0;
   border: 1px solid #ccc;
   padding: 16px;
@@ -1167,21 +1176,19 @@ img {
   top: 20px;
 }
 
-.research-notes-header {
-  margin-bottom: 12px;
+.research-notes-container {
+  border: 1px solid #ccc;
+  padding: 16px;
+  background: #fff;
 }
 
-.research-notes-header h3 {
-  margin: 0;
+.research-notes-container h3 {
+  margin: 0 0 12px 0;
   font-size: 14px;
   font-weight: 600;
   color: #666;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-}
-
-.research-notes-column .research-notes {
-  border: 1px solid #ccc;
 }
 
 .research-notes-column .research-note {
@@ -1195,11 +1202,9 @@ img {
 }
 
 .research-notes-empty {
-  padding: 16px;
   font-size: 15px;
   color: #888;
   font-style: italic;
-  border: 1px solid #ccc;
 }
 
 .research-chapter-sidebar {

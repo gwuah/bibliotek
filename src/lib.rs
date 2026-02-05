@@ -5,6 +5,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
+use serde::Serialize;
 use std::error::Error;
 
 pub mod api;
@@ -21,6 +22,34 @@ pub mod research;
 pub mod resumable;
 pub mod sync;
 
+/// Generic response helpers for all modules
+pub mod response {
+    use super::*;
+
+    #[derive(Serialize)]
+    pub struct ApiResponse<T: Serialize> {
+        pub data: T,
+    }
+
+    #[derive(Serialize)]
+    pub struct ErrorResponse {
+        pub error: String,
+    }
+
+    pub fn success<T: Serialize>(data: T) -> Response {
+        (StatusCode::OK, Json(ApiResponse { data })).into_response()
+    }
+
+    pub fn bad_request(msg: &str) -> Response {
+        (StatusCode::BAD_REQUEST, Json(ErrorResponse { error: msg.to_string() })).into_response()
+    }
+
+    pub fn internal_error(msg: &str) -> Response {
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse { error: msg.to_string() })).into_response()
+    }
+}
+
+// Legacy helpers for books module (uses APIResponse)
 pub fn internal_error<E: std::error::Error>(err: E) -> (StatusCode, String) {
     (StatusCode::INTERNAL_SERVER_ERROR, err.to_string())
 }

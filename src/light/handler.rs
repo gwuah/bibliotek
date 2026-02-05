@@ -1,9 +1,4 @@
-use axum::{
-    Json,
-    extract::State,
-    http::StatusCode,
-    response::{IntoResponse, Response},
-};
+use axum::{Json, extract::State, response::Response};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
@@ -12,6 +7,7 @@ use crate::commonplace::{
     compute_resource_hash,
 };
 use crate::handler::AppState;
+use crate::response::success;
 use crate::sync::{
     SyncResult, Syncable, handle_create_result_unit, handle_update_result_unit, is_orphan, is_unchanged, log_find_error,
 };
@@ -41,15 +37,6 @@ pub struct SyncResponse {
     pub annotations_updated: i32,
     pub annotations_deleted: i32,
     pub annotations_unchanged: i32,
-}
-
-#[derive(Debug, Serialize)]
-struct ApiResponse<T> {
-    data: T,
-}
-
-fn success<T: Serialize>(data: T) -> Response {
-    (StatusCode::OK, Json(ApiResponse { data })).into_response()
 }
 
 pub async fn sync_highlights(State(state): State<AppState>, Json(payload): Json<SyncRequest>) -> Response {

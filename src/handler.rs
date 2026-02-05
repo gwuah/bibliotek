@@ -110,23 +110,6 @@ pub async fn get_metadata(State(state): State<AppState>) -> Response {
     })
 }
 
-pub async fn add_book(State(state): State<AppState>, Query(qp): Query<QueryParams>) -> Response {
-    let hp = qp.into_handler_params();
-    let db_call = state.db.get_books(hp).await;
-
-    if let Err(e) = db_call {
-        tracing::info!("failed to add book. db_error: {}", e);
-        return crate::bad_request(APIResponse::new_from_msg("failed to add book"));
-    }
-
-    tracing::info!("added book");
-    crate::good_response(APIResponse {
-        books: vec![],
-        status: "ok".to_owned(),
-        upload_id: None,
-        metadata: None,
-    })
-}
 
 async fn extract_form(multipart: &mut Multipart) -> Result<Form, HandlerError> {
     let mut form = Form {
@@ -428,26 +411,6 @@ pub async fn abort_upload(
     }
 }
 
-pub async fn show_form() -> Html<&'static str> {
-    Html(
-        r#"
-        <!doctype html>
-        <html>
-            <head></head>
-            <body>
-                <form action="/upload" method="post" enctype="multipart/form-data">
-                    <label>
-                        Upload file:
-                        <input type="file" name="file" multiple>
-                    </label>
-
-                    <input type="submit" value="Upload files">
-                </form>
-            </body>
-        </html>
-        "#,
-    )
-}
 
 pub async fn serve_index() -> impl IntoResponse {
     match fs::read_to_string("web/index.html") {
