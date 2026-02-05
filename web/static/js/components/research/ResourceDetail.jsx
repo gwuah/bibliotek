@@ -287,20 +287,20 @@ export default function ResourceDetail({ resourceId, onBack }) {
         </div>
 
         <div className="research-notes-column">
-          <div className="research-notes-header">
+          <div className="research-notes-container">
             <h3>Notes {hasNotes && `(${data.notes.length})`}</h3>
+            {hasNotes ? (
+              <div className="research-notes">
+                {data.notes.map((note) => (
+                  <div key={note.id} className="research-note">
+                    <div dangerouslySetInnerHTML={{ __html: note.content }} />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="research-notes-empty">No notes</p>
+            )}
           </div>
-          {hasNotes ? (
-            <div className="research-notes">
-              {data.notes.map((note) => (
-                <div key={note.id} className="research-note">
-                  <div dangerouslySetInnerHTML={{ __html: note.content }} />
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="research-notes-empty">No notes</p>
-          )}
         </div>
       </div>
     </div>
