@@ -22,7 +22,7 @@ install: release
 		cp config.example.yaml $(CONFIG_DIR)/config.yaml; \
 		echo "Created $(CONFIG_DIR)/config.yaml"; \
 	else \
-		echo "Config already exists, skipping"; \
+		echo "Config already exists, you will have to edit it manually, skipping"; \
 	fi
 	cp $(PLIST_NAME) $(LAUNCH_AGENTS_DIR)/
 	@echo ""
@@ -39,5 +39,6 @@ uninstall:
 upgrade: release
 	mkdir -p $(BIN_DIR)
 	cp target/release/$(APP_NAME) $(BIN_DIR)/
+	cp $(PLIST_NAME) $(LAUNCH_AGENTS_DIR)/
 	launchctl stop $(LABEL) && launchctl start $(LABEL)
 	@echo "Upgraded and restarted $(APP_NAME)"

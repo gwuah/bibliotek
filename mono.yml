@@ -4,7 +4,6 @@ scripts:
     cd web && npm install
 
   setup: |
-    ln -sf "$MONO_ROOT_PATH/.env" "$MONO_ENV_PATH/.env"
     ln -sf "$MONO_ROOT_PATH/config.yaml" "$MONO_ENV_PATH/config.yaml"
 
   run: |
