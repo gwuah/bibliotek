@@ -325,11 +325,21 @@ function ChapterEditor({ config, onSave, onCancel, saving }) {
   )
 }
 
-function ChapterSidebar({ chapters, annotationCounts, totalAnnotations, selectedChapter, onSelectChapter, onEditChapters }) {
+function ChapterSidebar({ chapters, annotationCounts, totalAnnotations, selectedChapter, onSelectChapter, onEditChapters, darkMode, onToggleDarkMode, syncing, onSync }) {
   if (chapters.length === 0) {
     return (
       <div className="research-chapter-sidebar">
-        <h3>Chapters</h3>
+        <div className="research-chapter-header">
+          <h3>Chapters</h3>
+          <div className="research-chapter-header-buttons">
+            <button onClick={onSync} disabled={syncing} className="research-theme-toggle-small" title="Sync">
+              {syncing ? '...' : '↻'}
+            </button>
+            <button onClick={onToggleDarkMode} className="research-theme-toggle-small" title={darkMode ? 'Light mode' : 'Dark mode'}>
+              {darkMode ? '☀' : '●'}
+            </button>
+          </div>
+        </div>
         <p className="research-chapter-empty">No chapters defined</p>
         <button onClick={onEditChapters} className="research-btn research-btn-secondary">
           + Add Chapters
@@ -340,7 +350,17 @@ function ChapterSidebar({ chapters, annotationCounts, totalAnnotations, selected
 
   return (
     <div className="research-chapter-sidebar">
-      <h3>Chapters</h3>
+      <div className="research-chapter-header">
+        <h3>Chapters</h3>
+        <div className="research-chapter-header-buttons">
+          <button onClick={onSync} disabled={syncing} className="research-theme-toggle-small" title="Sync">
+            {syncing ? '...' : '↻'}
+          </button>
+          <button onClick={onToggleDarkMode} className="research-theme-toggle-small" title={darkMode ? 'Light mode' : 'Dark mode'}>
+            {darkMode ? '☀' : '●'}
+          </button>
+        </div>
+      </div>
       <div className="research-chapter-list">
         {/* "All" option to show all annotations */}
         <div
@@ -394,8 +414,16 @@ function ResourceDetail({ resourceId, onBack }) {
   const [savingConfig, setSavingConfig] = useState(false)
   const [editingChapters, setEditingChapters] = useState(false)
   const [selectedChapter, setSelectedChapter] = useState(getChapterFromHash)
-  const [showNotes, setShowNotes] = useState(true)
+  const [darkMode, setDarkMode] = useState(() => {
+    const saved = localStorage.getItem('research-dark-mode')
+    return saved === 'true'
+  })
   const [error, setError] = useState(null)
+
+  // Persist dark mode preference
+  useEffect(() => {
+    localStorage.setItem('research-dark-mode', darkMode)
+  }, [darkMode])
 
   // Update URL hash when chapter changes
   useEffect(() => {
@@ -509,31 +537,21 @@ function ResourceDetail({ resourceId, onBack }) {
         <button onClick={onBack} className="research-back-btn">
           ← Back to list
         </button>
-        <div className="research-detail-header-right">
-          <h2 className="research-detail-title">{data?.title}</h2>
-          <button
-            onClick={handleSync}
-            disabled={syncing}
-            className="research-btn research-btn-secondary"
-          >
-            {syncing ? 'Syncing...' : 'Sync'}
-          </button>
-        </div>
+        <span className="research-detail-header-sep">|</span>
+        <h2 className="research-detail-title">{data?.title}</h2>
       </div>
 
-      {editingChapters && (
-        <ChapterEditor
-          config={data?.config}
-          onSave={handleSaveConfig}
-          onCancel={() => setEditingChapters(false)}
-          saving={savingConfig}
-        />
-      )}
-
-      {!editingChapters && (
-        <div className="research-detail-layout">
-          {/* Left: Chapter Sidebar */}
-          <div className="research-toc-column">
+      <div className="research-detail-layout">
+        {/* Left: Chapter Sidebar or Editor */}
+        <div className="research-toc-column">
+          {editingChapters ? (
+            <ChapterEditor
+              config={data?.config}
+              onSave={handleSaveConfig}
+              onCancel={() => setEditingChapters(false)}
+              saving={savingConfig}
+            />
+          ) : (
             <ChapterSidebar
               chapters={chapters}
               annotationCounts={annotationCounts}
@@ -541,11 +559,16 @@ function ResourceDetail({ resourceId, onBack }) {
               selectedChapter={selectedChapter}
               onSelectChapter={setSelectedChapter}
               onEditChapters={() => setEditingChapters(true)}
+              darkMode={darkMode}
+              onToggleDarkMode={() => setDarkMode(!darkMode)}
+              syncing={syncing}
+              onSync={handleSync}
             />
-          </div>
+          )}
+        </div>
 
           {/* Center: Annotations */}
-          <div className="research-annotations-column">
+          <div className={`research-annotations-column ${darkMode ? 'dark' : ''}`}>
             {hasAnnotations ? (
               <div className="research-section">
                 <h3>
@@ -577,16 +600,12 @@ function ResourceDetail({ resourceId, onBack }) {
             )}
           </div>
 
-          {/* Right: Notes (collapsible) */}
-          <div className={`research-notes-column ${showNotes ? 'expanded' : 'collapsed'}`}>
-            <button
-              className="research-notes-toggle"
-              onClick={() => setShowNotes(!showNotes)}
-              title={showNotes ? 'Hide notes' : 'Show notes'}
-            >
-              {showNotes ? '▶' : '◀'} Notes {hasNotes && `(${data.notes.length})`}
-            </button>
-            {showNotes && hasNotes && (
+          {/* Right: Notes */}
+          <div className="research-notes-column">
+            <div className="research-notes-header">
+              <h3>Notes {hasNotes && `(${data.notes.length})`}</h3>
+            </div>
+            {hasNotes ? (
               <div className="research-notes">
                 {data.notes.map((note) => (
                   <div key={note.id} className="research-note">
@@ -594,13 +613,11 @@ function ResourceDetail({ resourceId, onBack }) {
                   </div>
                 ))}
               </div>
-            )}
-            {showNotes && !hasNotes && (
+            ) : (
               <p className="research-notes-empty">No notes</p>
             )}
           </div>
         </div>
-      )}
     </div>
   )
 }

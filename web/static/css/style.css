@@ -909,14 +909,12 @@ img {
 .research-detail-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 12px;
   margin-bottom: 24px;
 }
 
-.research-detail-header-right {
-  display: flex;
-  align-items: center;
-  gap: 16px;
+.research-detail-header-sep {
+  color: #ccc;
 }
 
 .research-back-btn {
@@ -989,6 +987,8 @@ img {
 .research-annotation {
   border-left: 2px solid #ccc;
   padding-left: 12px;
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 
 .research-annotation-text {
@@ -1101,6 +1101,7 @@ img {
   min-width: 0;
   border: 1px solid #ccc;
   padding: 16px;
+  background: #fff;
 }
 
 .research-annotations-column .research-section h3 {
@@ -1112,30 +1113,75 @@ img {
   letter-spacing: 0.5px;
 }
 
+/* Dark mode for annotations column */
+.research-annotations-column.dark {
+  border-color: #333;
+  background: #1a1a1a;
+}
+
+.research-annotations-column.dark .research-section h3 {
+  color: #999;
+}
+
+.research-annotations-column.dark .research-empty {
+  color: #888;
+}
+
+.research-annotations-column.dark .research-annotation-text {
+  color: #e5e5e5;
+}
+
+.research-annotations-column.dark .research-annotation {
+  border-left-color: #555;
+}
+
+.research-annotations-column.dark .research-annotation:nth-child(odd) {
+  background: #222;
+}
+
+.research-annotations-column.dark .research-annotation:nth-child(even) {
+  background: #2a2a2a;
+}
+
+.research-annotations-column.dark .research-page-number {
+  color: #aaa;
+  background: #333;
+}
+
+.research-annotations-column.dark .research-comments-toggle {
+  color: #888;
+}
+
+.research-annotations-column.dark .research-comments-toggle:hover {
+  color: #ccc;
+}
+
+.research-annotations-column.dark .research-comment {
+  background: #333;
+  color: #ddd;
+}
+
 .research-notes-column {
   flex: 1;
   position: sticky;
   top: 20px;
 }
 
-.research-notes-toggle {
-  background: none;
-  border: 1px solid #ccc;
-  padding: 8px 12px;
-  font-size: 15px;
-  cursor: pointer;
-  white-space: nowrap;
-  color: #666;
+.research-notes-header {
+  margin-bottom: 12px;
 }
 
-.research-notes-toggle:hover {
-  background: #f5f5f5;
-  border-color: #999;
+.research-notes-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .research-notes-column .research-notes {
   border: 1px solid #ccc;
-  border-top: none;
 }
 
 .research-notes-column .research-note {
@@ -1154,7 +1200,6 @@ img {
   color: #888;
   font-style: italic;
   border: 1px solid #ccc;
-  border-top: none;
 }
 
 .research-chapter-sidebar {
@@ -1162,13 +1207,40 @@ img {
   padding: 16px;
 }
 
+.research-chapter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.research-chapter-header-buttons {
+  display: flex;
+  gap: 4px;
+}
+
 .research-chapter-sidebar h3 {
-  margin: 0 0 12px 0;
+  margin: 0;
   font-size: 14px;
   font-weight: 600;
   color: #666;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.research-theme-toggle-small {
+  background: none;
+  border: 1px solid #ccc;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 2px;
+  color: #666;
+}
+
+.research-theme-toggle-small:hover {
+  background: #f5f5f5;
+  border-color: #999;
 }
 
 .research-chapter-list {
@@ -1225,7 +1297,6 @@ img {
 .research-chapter-editor {
   border: 1px solid #ccc;
   padding: 16px;
-  margin-bottom: 24px;
 }
 
 .research-chapter-editor h4 {
