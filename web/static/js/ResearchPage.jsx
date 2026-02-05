@@ -208,11 +208,12 @@ function AnnotationItem({ annotation }) {
   )
 }
 
-function groupAnnotationsByPage(annotations) {
+function groupAnnotationsByPage(annotations, offset = 0) {
   const groups = {}
 
   for (const ann of annotations) {
-    const page = ann.boundary?.pageNumber ?? 'No Page'
+    const physicalPage = ann.boundary?.pageNumber
+    const page = physicalPage != null ? physicalPage - offset : 'No Page'
     if (!groups[page]) {
       groups[page] = []
     }
@@ -246,31 +247,35 @@ function parseChapters(config) {
 }
 
 // Get annotations for a specific chapter (by page range)
-function getAnnotationsForChapter(annotations, chapter) {
+// offset: subtract from physical page to get logical page
+function getAnnotationsForChapter(annotations, chapter, offset = 0) {
   return annotations.filter(ann => {
-    const page = ann.boundary?.pageNumber
-    if (page == null) return false
-    return page >= chapter.startPage && page <= chapter.endPage
+    const physicalPage = ann.boundary?.pageNumber
+    if (physicalPage == null) return false
+    const logicalPage = physicalPage - offset
+    return logicalPage >= chapter.startPage && logicalPage <= chapter.endPage
   })
 }
 
 // Count annotations per chapter
-function getChapterAnnotationCounts(annotations, chapters) {
+function getChapterAnnotationCounts(annotations, chapters, offset = 0) {
   const counts = {}
   for (const chapter of chapters) {
-    counts[chapter.key] = getAnnotationsForChapter(annotations, chapter).length
+    counts[chapter.key] = getAnnotationsForChapter(annotations, chapter, offset).length
   }
   return counts
 }
 
 function ChapterEditor({ config, onSave, onCancel, saving }) {
   const [json, setJson] = useState('')
+  const [pageOffset, setPageOffset] = useState(0)
   const [error, setError] = useState(null)
 
   useEffect(() => {
     // Initialize with current chapters or empty object
     const chapters = config?.chapters || {}
     setJson(JSON.stringify(chapters, null, 2))
+    setPageOffset(config?.page_offset || 0)
   }, [config])
 
   const handleSave = () => {
@@ -289,7 +294,7 @@ function ChapterEditor({ config, onSave, onCancel, saving }) {
           throw new Error(`Chapter "${key}" pages must be numbers`)
         }
       }
-      onSave({ chapters: parsed })
+      onSave({ chapters: parsed, page_offset: pageOffset })
     } catch (err) {
       setError(err.message)
     }
@@ -297,9 +302,18 @@ function ChapterEditor({ config, onSave, onCancel, saving }) {
 
   return (
     <div className="research-chapter-editor">
-      <h4>Chapter Boundaries</h4>
+      <h4>Chapter Config</h4>
+      <label className="research-chapter-offset-label">
+        <span>Page offset (physical - logical):</span>
+        <input
+          type="number"
+          value={pageOffset}
+          onChange={(e) => setPageOffset(parseInt(e.target.value) || 0)}
+          className="research-chapter-offset-input"
+        />
+      </label>
       <p className="research-chapter-help">
-        Format: {"{"}"1": ["Title", startPage, endPage], ...{"}"}
+        Chapters: {"{"}"1": ["Title", startPage, endPage], ...{"}"}
       </p>
       <textarea
         value={json}
@@ -332,6 +346,9 @@ function ChapterSidebar({ chapters, annotationCounts, totalAnnotations, selected
         <div className="research-chapter-header">
           <h3>Chapters</h3>
           <div className="research-chapter-header-buttons">
+            <button onClick={onEditChapters} className="research-theme-toggle-small" title="Edit chapters">
+              ✎
+            </button>
             <button onClick={onSync} disabled={syncing} className="research-theme-toggle-small" title="Sync">
               {syncing ? '...' : '↻'}
             </button>
@@ -341,9 +358,6 @@ function ChapterSidebar({ chapters, annotationCounts, totalAnnotations, selected
           </div>
         </div>
         <p className="research-chapter-empty">No chapters defined</p>
-        <button onClick={onEditChapters} className="research-btn research-btn-secondary">
-          + Add Chapters
-        </button>
       </div>
     )
   }
@@ -353,6 +367,9 @@ function ChapterSidebar({ chapters, annotationCounts, totalAnnotations, selected
       <div className="research-chapter-header">
         <h3>Chapters</h3>
         <div className="research-chapter-header-buttons">
+          <button onClick={onEditChapters} className="research-theme-toggle-small" title="Edit chapters">
+            ✎
+          </button>
           <button onClick={onSync} disabled={syncing} className="research-theme-toggle-small" title="Sync">
             {syncing ? '...' : '↻'}
           </button>
@@ -391,9 +408,6 @@ function ChapterSidebar({ chapters, annotationCounts, totalAnnotations, selected
           </div>
         ))}
       </div>
-      <button onClick={onEditChapters} className="research-btn research-btn-secondary research-chapter-edit-btn">
-        Edit Chapters
-      </button>
     </div>
   )
 }
@@ -521,14 +535,15 @@ function ResourceDetail({ resourceId, onBack }) {
   const hasAnnotations = data?.annotations && data.annotations.length > 0
   const chapters = parseChapters(data?.config)
   const hasChapters = chapters.length > 0
-  const annotationCounts = hasAnnotations ? getChapterAnnotationCounts(data.annotations, chapters) : {}
+  const pageOffset = data?.config?.page_offset || 0
+  const annotationCounts = hasAnnotations ? getChapterAnnotationCounts(data.annotations, chapters, pageOffset) : {}
 
   // Get annotations to display (filtered by chapter if selected)
   const selectedChapterData = hasChapters && selectedChapter
     ? chapters.find(c => c.key === selectedChapter)
     : null
   const displayAnnotations = selectedChapterData
-    ? getAnnotationsForChapter(data?.annotations || [], selectedChapterData)
+    ? getAnnotationsForChapter(data?.annotations || [], selectedChapterData, pageOffset)
     : data?.annotations || []
 
   return (
@@ -578,7 +593,7 @@ function ResourceDetail({ resourceId, onBack }) {
                   }
                 </h3>
                 <div className="research-annotations">
-                  {groupAnnotationsByPage(displayAnnotations).map((group) => (
+                  {groupAnnotationsByPage(displayAnnotations, pageOffset).map((group) => (
                     <div key={group.page} className="research-page-group">
                       <div className="research-page-header">
                         <span className="research-page-number">

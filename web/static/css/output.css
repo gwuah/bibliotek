@@ -1457,6 +1457,29 @@ img {
   font-size: 14px;
   font-weight: 600;
 }
+.research-chapter-offset-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 12px;
+}
+.research-chapter-offset-label span {
+  white-space: nowrap;
+}
+.research-chapter-offset-input {
+  width: 60px;
+  padding: 4px 8px;
+  border: 1px solid #ccc;
+  font-family: inherit;
+  font-size: 13px;
+  text-align: center;
+}
+.research-chapter-offset-input:focus {
+  outline: none;
+  border-color: #666;
+}
 .research-chapter-help {
   font-size: 12px;
   color: #666;

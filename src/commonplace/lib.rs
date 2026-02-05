@@ -66,6 +66,10 @@ pub struct ResourceConfig {
     /// Chapters mapping: key is chapter number, value is [title, start_page, end_page]
     #[serde(default)]
     pub chapters: std::collections::HashMap<String, (String, i32, i32)>,
+    /// Page offset: subtract this from physical page to get logical page
+    /// e.g., if physical page 15 = logical page 1, offset = 14
+    #[serde(default)]
+    pub page_offset: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
