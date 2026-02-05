@@ -325,7 +325,7 @@ function ChapterEditor({ config, onSave, onCancel, saving }) {
   )
 }
 
-function ChapterSidebar({ chapters, annotationCounts, selectedChapter, onSelectChapter, onEditChapters }) {
+function ChapterSidebar({ chapters, annotationCounts, totalAnnotations, selectedChapter, onSelectChapter, onEditChapters }) {
   if (chapters.length === 0) {
     return (
       <div className="research-chapter-sidebar">
@@ -342,6 +342,19 @@ function ChapterSidebar({ chapters, annotationCounts, selectedChapter, onSelectC
     <div className="research-chapter-sidebar">
       <h3>Chapters</h3>
       <div className="research-chapter-list">
+        {/* "All" option to show all annotations */}
+        <div
+          className={`research-chapter-item ${selectedChapter === null ? 'selected' : ''}`}
+          onClick={() => onSelectChapter(null)}
+        >
+          <div className="research-chapter-item-title">
+            {selectedChapter === null && <span className="research-chapter-marker">▶ </span>}
+            All Annotations
+          </div>
+          <div className="research-chapter-item-meta">
+            {totalAnnotations} total
+          </div>
+        </div>
         {chapters.map((chapter) => (
           <div
             key={chapter.key}
@@ -388,6 +401,9 @@ function ResourceDetail({ resourceId, onBack }) {
   useEffect(() => {
     if (selectedChapter) {
       window.history.replaceState(null, '', `#chapter-${selectedChapter}`)
+    } else {
+      // Clear hash when "All" is selected
+      window.history.replaceState(null, '', window.location.pathname)
     }
   }, [selectedChapter])
 
@@ -403,15 +419,11 @@ function ResourceDetail({ resourceId, onBack }) {
       if (res.ok) {
         const result = await res.json()
         setData(result.data)
-        // Select chapter from URL hash, or first chapter by default
+        // Select chapter from URL hash if present (otherwise stay on "All")
         const chapters = parseChapters(result.data?.config)
         const hashChapter = getChapterFromHash()
-        if (chapters.length > 0 && !selectedChapter) {
-          if (hashChapter && chapters.some(c => c.key === hashChapter)) {
-            setSelectedChapter(hashChapter)
-          } else {
-            setSelectedChapter(chapters[0].key)
-          }
+        if (hashChapter && chapters.some(c => c.key === hashChapter)) {
+          setSelectedChapter(hashChapter)
         }
       } else {
         setError('Resource not found')
@@ -525,6 +537,7 @@ function ResourceDetail({ resourceId, onBack }) {
             <ChapterSidebar
               chapters={chapters}
               annotationCounts={annotationCounts}
+              totalAnnotations={data?.annotations?.length || 0}
               selectedChapter={selectedChapter}
               onSelectChapter={setSelectedChapter}
               onEditChapters={() => setEditingChapters(true)}
