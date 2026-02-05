@@ -7,32 +7,32 @@ use sha2::{Digest, Sha256};
 
 use crate::sync::Syncable;
 
-// Content hash computation functions
-pub fn compute_resource_hash(title: &str) -> String {
+/// Compute SHA256 hash from multiple string parts
+fn compute_hash(parts: &[&str]) -> String {
     let mut hasher = Sha256::new();
-    hasher.update(title.as_bytes());
-    format!("{:x}", hasher.finalize())
-}
-
-pub fn compute_annotation_hash(text: &str, color: Option<&str>) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(text.as_bytes());
-    if let Some(color) = color {
-        hasher.update(color.as_bytes());
+    for part in parts {
+        hasher.update(part.as_bytes());
     }
     format!("{:x}", hasher.finalize())
 }
 
+pub fn compute_resource_hash(title: &str) -> String {
+    compute_hash(&[title])
+}
+
+pub fn compute_annotation_hash(text: &str, color: Option<&str>) -> String {
+    match color {
+        Some(c) => compute_hash(&[text, c]),
+        None => compute_hash(&[text]),
+    }
+}
+
 pub fn compute_comment_hash(content: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(content.as_bytes());
-    format!("{:x}", hasher.finalize())
+    compute_hash(&[content])
 }
 
 pub fn compute_note_hash(content: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(content.as_bytes());
-    format!("{:x}", hasher.finalize())
+    compute_hash(&[content])
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

@@ -16,10 +16,7 @@ use bibliotek::handler::{
 use bibliotek::light;
 use bibliotek::research;
 use bibliotek::resumable::ResumableUploadManager;
-use bibliotek::{
-    config::{Cli, Config, default_config_dir, default_config_path},
-    handler::show_form,
-};
+use bibliotek::config::{Cli, Config, default_config_dir, default_config_path};
 use clap::Parser;
 use tokio::{signal, sync::mpsc};
 use tokio_util::sync::CancellationToken;
@@ -111,7 +108,6 @@ async fn main() {
         .route("/authors", post(create_author))
         .route("/tags", post(create_tag))
         .route("/categories", post(create_category))
-        .route("/upload", get(show_form))
         .route("/upload", post(upload))
         .route("/upload/pending", get(get_pending_uploads))
         .route("/upload/abort", post(abort_upload))

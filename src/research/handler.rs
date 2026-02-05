@@ -1,9 +1,4 @@
-use axum::{
-    Json,
-    extract::State,
-    http::StatusCode,
-    response::{IntoResponse, Response},
-};
+use axum::{Json, extract::State, response::Response};
 use libsql::{Builder, Connection};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -15,6 +10,7 @@ use crate::commonplace::{
     compute_resource_hash,
 };
 use crate::handler::AppState;
+use crate::response::{bad_request, internal_error, success};
 use crate::sync::{
     SyncResult, SyncStats, delete_orphans, handle_create_result, handle_create_result_unit, handle_update_result,
     handle_update_result_unit, is_unchanged, log_find_error,
@@ -81,16 +77,6 @@ impl SyncResponse {
     }
 }
 
-#[derive(Debug, Serialize)]
-struct ApiResponse<T> {
-    data: T,
-}
-
-#[derive(Debug, Serialize)]
-struct ErrorResponse {
-    error: String,
-}
-
 #[derive(Debug)]
 struct ResearchItem {
     id: String,
@@ -116,18 +102,6 @@ struct ResearchComment {
 struct ResearchNote {
     id: String,
     content: String,
-}
-
-fn success<T: Serialize>(data: T) -> Response {
-    (StatusCode::OK, Json(ApiResponse { data })).into_response()
-}
-
-fn bad_request(msg: &str) -> Response {
-    (StatusCode::BAD_REQUEST, Json(ErrorResponse { error: msg.to_string() })).into_response()
-}
-
-fn internal_error(msg: &str) -> Response {
-    (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse { error: msg.to_string() })).into_response()
 }
 
 pub async fn get_config(State(state): State<AppState>) -> Response {

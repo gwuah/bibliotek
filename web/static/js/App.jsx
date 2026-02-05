@@ -716,15 +716,6 @@ function BookList({ books, entities, onBookUpdate, onEntitiesChange }) {
 
   return (
     <table className="w-full text-left text-sm">
-      {/* <thead>
-        <tr className="border-b-2 border-gray-300">
-          <th className="px-2 font-semibold">Title</th>
-          <th className="px-2 font-semibold">Authors</th>
-          <th className="px-2 font-semibold">Tags</th>
-          <th className="px-2 font-semibold">Categories</th>
-          <th className="px-2 font-semibold"></th>
-        </tr>
-      </thead> */}
       <tbody>
         {books.map(book => (
           <BookRow
