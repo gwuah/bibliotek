@@ -1,7 +1,7 @@
 scripts:
   init: |
     cargo build
-    cd web && npm install
+    cd web && npm install && npm run build
 
   setup: |
     ln -sf "$MONO_ROOT_PATH/config.yaml" "$MONO_ENV_PATH/config.yaml"
@@ -9,7 +9,7 @@ scripts:
   run: |
     export PORT=$((5678 + MONO_ENV_ID))
     export API_PORT=$PORT
-    RUST_LOG=debug cargo run --bin bibliotek -- -c config.yaml &
+    cargo run --bin bibliotek -- -c config.yaml &
     SERVER_PID=$!
     cd web && npm run dev
     kill $SERVER_PID 2>/dev/null
