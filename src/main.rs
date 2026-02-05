@@ -55,7 +55,10 @@ async fn main() {
         std::process::exit(1);
     }
 
-    tracing_subscriber::fmt().json().init();
+    tracing_subscriber::fmt()
+        .json()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .init();
     tracing::info!("bibliotek.svc starting");
 
     let cfg = Config::new(config_path.to_str().unwrap()).unwrap_or_else(|e| {
