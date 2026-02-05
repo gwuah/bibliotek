@@ -1094,10 +1094,19 @@ img {
   flex: 0 0 20%;
   position: sticky;
   top: 20px;
+  transition: flex-basis 0.2s ease;
+}
+
+.research-toc-column.collapsed {
+  flex: 0 0 auto;
+}
+
+.research-chapter-sidebar.collapsed {
+  padding: 8px;
 }
 
 .research-annotations-column {
-  flex: 0 0 40%;
+  flex: 1;
   min-width: 0;
   border: 1px solid #ccc;
   padding: 16px;

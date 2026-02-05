@@ -108,6 +108,7 @@ export default function ResourceDetail({ resourceId, onBack }) {
     const saved = localStorage.getItem('research-dark-mode')
     return saved === 'true'
   })
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [error, setError] = useState(null)
 
   useEffect(() => {
@@ -227,7 +228,7 @@ export default function ResourceDetail({ resourceId, onBack }) {
       </div>
 
       <div className="research-detail-layout">
-        <div className="research-toc-column">
+        <div className={`research-toc-column ${sidebarCollapsed ? 'collapsed' : ''}`}>
           {editingChapters ? (
             <ChapterEditor
               config={data?.config}
@@ -247,6 +248,8 @@ export default function ResourceDetail({ resourceId, onBack }) {
               onToggleDarkMode={() => setDarkMode(!darkMode)}
               syncing={syncing}
               onSync={handleSync}
+              collapsed={sidebarCollapsed}
+              onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
             />
           )}
         </div>

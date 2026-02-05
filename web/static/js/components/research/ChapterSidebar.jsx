@@ -10,10 +10,25 @@ export default function ChapterSidebar({
   darkMode,
   onToggleDarkMode,
   syncing,
-  onSync
+  onSync,
+  collapsed,
+  onToggleCollapse
 }) {
+  if (collapsed) {
+    return (
+      <div className="research-chapter-sidebar collapsed">
+        <button onClick={onToggleCollapse} className="research-theme-toggle-small" title="Expand">
+          ▸
+        </button>
+      </div>
+    )
+  }
+
   const headerButtons = (
     <div className="research-chapter-header-buttons">
+      <button onClick={onToggleCollapse} className="research-theme-toggle-small" title="Collapse">
+        ◂
+      </button>
       <button onClick={onEditChapters} className="research-theme-toggle-small" title="Edit chapters">
         ✎
       </button>
