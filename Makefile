@@ -1,7 +1,7 @@
 APP_NAME := bibliotek
 LABEL := com.gwuah.$(APP_NAME)
 BIN_DIR := $(HOME)/.local/bin
-CONFIG_DIR := $(HOME)/.config/$(APP_NAME)
+CONFIG_DIR := $(HOME)/.$(APP_NAME)
 LAUNCH_AGENTS_DIR := $(HOME)/Library/LaunchAgents
 PLIST_NAME := $(LABEL).plist
 

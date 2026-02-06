@@ -17,8 +17,7 @@ pub struct Cli {
 pub fn default_config_dir() -> PathBuf {
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join(".config")
-        .join("bibliotek")
+        .join(".bibliotek")
 }
 
 pub fn default_config_path() -> PathBuf {

@@ -9,10 +9,6 @@ use std::path::Path;
 use std::time::Duration;
 use tokio::sync::Mutex;
 
-fn get_home_dir() -> Result<String> {
-    Ok(env::var("HOME")?)
-}
-
 const SYSTEM_MIGRATIONS: &[(&str, &str)] =
     &[("system/000_migrations_table.sql", include_str!("migrations/system/000_migrations_table.sql"))];
 
@@ -104,7 +100,9 @@ impl Database {
     }
 
     pub async fn new(cfg: &Config) -> Result<Self> {
-        let base_dir = env::var("MONO_DATA_DIR").unwrap_or_else(|_| get_home_dir().unwrap());
+        let base_dir = env::var("MONO_DATA_DIR")
+            .ok()
+            .unwrap_or_else(|| crate::config::default_config_dir().to_string_lossy().to_string());
         let path = Path::new(&base_dir).join(cfg.app.get_db());
         let turso_url = cfg.app.turso_url.clone();
         let turso_auth_token = cfg.app.turso_auth_token.clone();
