@@ -68,10 +68,8 @@ impl QueryParams {
 pub async fn healthcheck() -> impl IntoResponse {
     info!("got healthcheck request");
     crate::good_response(APIResponse {
-        books: vec![],
         status: "ok".to_owned(),
-        upload_id: None,
-        metadata: None,
+        ..Default::default()
     })
 }
 
@@ -84,12 +82,14 @@ pub async fn get_books(State(state): State<AppState>, Query(qp): Query<QueryPara
         return crate::bad_request(APIResponse::new_from_msg("failed to get books"));
     }
 
+    let total_books = state.db.count_books().await.ok();
+
     tracing::info!("got books");
     crate::good_response(APIResponse {
         books: db_call.ok().unwrap_or_default(),
+        total_books,
         status: "ok".to_owned(),
-        upload_id: None,
-        metadata: None,
+        ..Default::default()
     })
 }
 
@@ -103,10 +103,9 @@ pub async fn get_metadata(State(state): State<AppState>) -> Response {
 
     tracing::info!("got metadata aggregates");
     crate::good_response(APIResponse {
-        books: vec![],
         status: "ok".to_owned(),
-        upload_id: None,
         metadata: Some(db_call.ok().unwrap()),
+        ..Default::default()
     })
 }
 
@@ -249,10 +248,8 @@ pub async fn upload(
         };
 
         return crate::good_response(APIResponse {
-            books: vec![],
             status: "ok".to_owned(),
-            upload_id: None,
-            metadata: None,
+            ..Default::default()
         });
     }
 
@@ -355,10 +352,9 @@ pub async fn upload(
         }
 
         let mut response = APIResponse {
-            books: vec![],
             status: "upload completed".to_owned(),
             upload_id: Some(object_url),
-            metadata: None,
+            ..Default::default()
         };
 
         if let Some(book) = created_book {
@@ -438,8 +434,7 @@ pub async fn update_book(
                 Json(APIResponse {
                     books: vec![book],
                     status: "ok".to_owned(),
-                    upload_id: None,
-                    metadata: None,
+                    ..Default::default()
                 }),
             )
                 .into_response(),

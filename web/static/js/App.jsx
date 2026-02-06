@@ -45,7 +45,7 @@ export default function App() {
         const researchData = researchRes.ok ? await researchRes.json() : { data: [] }
 
         setCounts({
-          books: booksData.books?.length || 0,
+          books: booksData.total_books ?? booksData.books?.length ?? 0,
           highlights: highlightsData.data?.length || 0,
           research: researchData.data?.length || 0
         })

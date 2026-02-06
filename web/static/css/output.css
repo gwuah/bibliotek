@@ -244,6 +244,9 @@
   .flex-shrink-0 {
     flex-shrink: 0;
   }
+  .table-fixed {
+    table-layout: fixed;
+  }
   .cursor-not-allowed {
     cursor: not-allowed;
   }

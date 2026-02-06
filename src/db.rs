@@ -176,6 +176,15 @@ impl Database {
             .collect()
     }
 
+    pub async fn count_books(&self) -> Result<u32> {
+        let mut rows = self.conn.query("SELECT COUNT(*) FROM books", ()).await?;
+        if let Some(row) = rows.next().await? {
+            let count: i32 = row.get(0)?;
+            return Ok(count as u32);
+        }
+        Ok(0)
+    }
+
     pub async fn get_books(&self, params: HandlerParams) -> Result<Vec<Book>> {
         let last_n_books = r#"
 SELECT

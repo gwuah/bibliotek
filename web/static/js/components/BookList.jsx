@@ -7,7 +7,14 @@ export default function BookList({ books, entities, onBookUpdate, onEntitiesChan
   }
 
   return (
-    <table className="w-full text-left text-sm">
+    <table className="w-full table-fixed text-left text-sm">
+      <colgroup>
+        <col style={{ width: '33%' }} />
+        <col style={{ width: '17%' }} />
+        <col style={{ width: '17%' }} />
+        <col style={{ width: '17%' }} />
+        <col style={{ width: '16%' }} />
+      </colgroup>
       <tbody>
         {books.map(book => (
           <BookRow

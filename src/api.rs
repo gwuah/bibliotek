@@ -54,6 +54,8 @@ pub struct APIResponse {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub books: Vec<Book>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_books: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub upload_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<MetadataAggregate>,
@@ -68,9 +70,7 @@ impl APIResponse {
     pub fn new_from_msg(msg: &str) -> Self {
         return APIResponse {
             status: msg.to_owned(),
-            books: vec![],
-            upload_id: None,
-            metadata: None,
+            ..Default::default()
         };
     }
 
