@@ -3,17 +3,17 @@ import HighlightsPage from './HighlightsPage.jsx'
 import ResearchPage from './ResearchPage.jsx'
 import BooksPage from './components/BooksPage.jsx'
 
-const VALID_PAGES = ['books', 'highlights', 'research']
+const VALID_PAGES = ['library', 'highlights', 'reading']
 
 function parseRoute() {
   const path = window.location.pathname.slice(1)
   const segments = path.split('/').filter(Boolean)
 
   if (segments.length === 0) {
-    return { page: 'books', resourceId: null }
+    return { page: 'library', resourceId: null }
   }
 
-  const page = VALID_PAGES.includes(segments[0]) ? segments[0] : 'books'
+  const page = VALID_PAGES.includes(segments[0]) ? segments[0] : 'library'
   const resourceId = segments[1] ? parseInt(segments[1], 10) : null
 
   return { page, resourceId: isNaN(resourceId) ? null : resourceId }
@@ -68,10 +68,10 @@ export default function App() {
     <div className="p-10">
       <nav className="app-nav">
         <button
-          className={route.page === 'books' ? 'active' : ''}
-          onClick={() => navigateTo('books')}
+          className={route.page === 'library' ? 'active' : ''}
+          onClick={() => navigateTo('library')}
         >
-          Books {counts.books > 0 && `(${counts.books})`}
+          Library {counts.books > 0 && `(${counts.books})`}
         </button>
         <button
           className={route.page === 'highlights' ? 'active' : ''}
@@ -80,19 +80,19 @@ export default function App() {
           Highlights {counts.highlights > 0 && `(${counts.highlights})`}
         </button>
         <button
-          className={route.page === 'research' ? 'active' : ''}
-          onClick={() => navigateTo('research')}
+          className={route.page === 'reading' ? 'active' : ''}
+          onClick={() => navigateTo('reading')}
         >
-          Research {counts.research > 0 && `(${counts.research})`}
+          Reading {counts.research > 0 && `(${counts.research})`}
         </button>
       </nav>
 
-      {route.page === 'books' && <BooksPage />}
+      {route.page === 'library' && <BooksPage />}
       {route.page === 'highlights' && <HighlightsPage />}
-      {route.page === 'research' && (
+      {route.page === 'reading' && (
         <ResearchPage
           resourceId={route.resourceId}
-          onNavigate={(id) => navigateTo('research', id)}
+          onNavigate={(id) => navigateTo('reading', id)}
         />
       )}
     </div>
