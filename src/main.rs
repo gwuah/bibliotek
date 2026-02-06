@@ -8,6 +8,7 @@ use axum::{
 };
 use bibliotek::assets::serve_embedded;
 use bibliotek::commonplace;
+use bibliotek::config::{Cli, Config, default_config_dir, default_config_path};
 use bibliotek::db::Database;
 use bibliotek::handler::{
     AppState, abort_upload, create_author, create_category, create_tag, get_books, get_download_url, get_metadata,
@@ -16,7 +17,6 @@ use bibliotek::handler::{
 use bibliotek::light;
 use bibliotek::research;
 use bibliotek::resumable::ResumableUploadManager;
-use bibliotek::config::{Cli, Config, default_config_dir, default_config_path};
 use clap::Parser;
 use tokio::{signal, sync::mpsc};
 use tokio_util::sync::CancellationToken;
@@ -74,6 +74,8 @@ async fn main() {
     let address = format!("0.0.0.0:{}", cfg.app.get_port().to_string());
     let cancellation_token = CancellationToken::new();
     let (shutdown_complete_tx, mut shutdown_complete_rx) = mpsc::channel::<()>(1);
+
+    db.start_sync_task(cfg.app.sync_interval_seconds, cancellation_token.clone());
 
     // Background task to clean up expired uploads every hour
     let cleanup_resumable = resumable.clone();

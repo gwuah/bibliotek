@@ -6,8 +6,9 @@ use libsql::{Builder, Connection, Database as LibsqlDatabase};
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::path::Path;
-use std::time::Duration;
+use std::sync::Arc;
 use tokio::sync::Mutex;
+use tokio_util::sync::CancellationToken;
 
 const SYSTEM_MIGRATIONS: &[(&str, &str)] =
     &[("system/000_migrations_table.sql", include_str!("migrations/system/000_migrations_table.sql"))];
@@ -39,18 +40,41 @@ impl Database {
         &self.conn
     }
 
-    pub fn is_replica(turso_url: &Option<String>, turso_auth_token: &Option<String>) -> bool {
-        turso_url.is_some() && turso_auth_token.is_some()
+    pub fn is_replica(&self) -> bool {
+        self.turso_url.is_some() && self.turso_auth_token.is_some()
     }
 
     pub async fn sync(&self) -> Result<()> {
-        if Self::is_replica(&self.turso_url, &self.turso_auth_token) {
+        if self.is_replica() {
             self.db
                 .sync()
                 .await
                 .map_err(|e| anyhow::anyhow!("sync failed: {}", e))?;
         }
         Ok(())
+    }
+
+    pub fn start_sync_task(self: &Arc<Self>, interval_secs: u64, cancel: CancellationToken) {
+        if !self.is_replica() {
+            return;
+        }
+        let db = self.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(interval_secs));
+            loop {
+                tokio::select! {
+                    _ = interval.tick() => {
+                        if let Err(e) = db.sync().await {
+                            tracing::warn!("Failed to sync database: {}", e);
+                        }
+                    }
+                    _ = cancel.cancelled() => {
+                        tracing::info!("Database sync task shutting down");
+                        break;
+                    }
+                }
+            }
+        });
     }
 
     async fn is_migration_applied(conn: &Connection, name: &str) -> Result<bool> {
@@ -110,9 +134,7 @@ impl Database {
         let db = match (&turso_url, &turso_auth_token) {
             (Some(url), Some(token)) => {
                 tracing::info!("[db] running in synced database mode (offline writes)");
-                let sync_interval = Duration::from_secs(cfg.app.sync_interval_seconds);
                 Builder::new_synced_database(&path, url.clone(), token.clone())
-                    .sync_interval(sync_interval)
                     .build()
                     .await?
             }
