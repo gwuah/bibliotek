@@ -63,13 +63,10 @@ impl ResourceType {
 /// For PDFs, this can contain chapter boundaries
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ResourceConfig {
-    /// Chapters mapping: key is chapter number, value is [title, start_page, end_page]
+    /// Chapters mapping: key is chapter number (integer as string), value is [title, start_page]
+    /// End pages are computed: next chapter's start_page - 1, last chapter extends to infinity
     #[serde(default)]
-    pub chapters: std::collections::HashMap<String, (String, i32, i32)>,
-    /// Page offset: subtract this from physical page to get logical page
-    /// e.g., if physical page 15 = logical page 1, offset = 14
-    #[serde(default)]
-    pub page_offset: i32,
+    pub chapters: std::collections::HashMap<String, (String, i32)>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

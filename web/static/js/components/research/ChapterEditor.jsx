@@ -1,51 +1,43 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect } from "react";
 
 export default function ChapterEditor({ config, onSave, onCancel, saving }) {
-  const [json, setJson] = useState('')
-  const [pageOffset, setPageOffset] = useState(0)
-  const [error, setError] = useState(null)
+  const [json, setJson] = useState("");
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    const chapters = config?.chapters || {}
-    setJson(JSON.stringify(chapters, null, 2))
-    setPageOffset(config?.page_offset || 0)
-  }, [config])
+    const chapters = config?.chapters || {};
+    setJson(JSON.stringify(chapters, null, 2));
+  }, [config]);
 
   const handleSave = () => {
-    setError(null)
+    setError(null);
     try {
-      const parsed = JSON.parse(json)
+      const parsed = JSON.parse(json);
       for (const [key, value] of Object.entries(parsed)) {
-        if (!Array.isArray(value) || value.length !== 3) {
-          throw new Error(`Chapter "${key}" must be [title, startPage, endPage]`)
+        if (isNaN(parseInt(key, 10))) {
+          throw new Error(`Chapter key "${key}" must be an integer`);
         }
-        if (typeof value[0] !== 'string') {
-          throw new Error(`Chapter "${key}" title must be a string`)
+        if (!Array.isArray(value) || value.length !== 2) {
+          throw new Error(`Chapter "${key}" must be [title, startPage]`);
         }
-        if (typeof value[1] !== 'number' || typeof value[2] !== 'number') {
-          throw new Error(`Chapter "${key}" pages must be numbers`)
+        if (typeof value[0] !== "string") {
+          throw new Error(`Chapter "${key}" title must be a string`);
+        }
+        if (typeof value[1] !== "number") {
+          throw new Error(`Chapter "${key}" startPage must be a number`);
         }
       }
-      onSave({ chapters: parsed, page_offset: pageOffset })
+      onSave({ chapters: parsed });
     } catch (err) {
-      setError(err.message)
+      setError(err.message);
     }
-  }
+  };
 
   return (
     <div className="research-chapter-editor">
       <h4>Chapter Config</h4>
-      <label className="research-chapter-offset-label">
-        <span>Page offset (physical - logical):</span>
-        <input
-          type="number"
-          value={pageOffset}
-          onChange={(e) => setPageOffset(parseInt(e.target.value) || 0)}
-          className="research-chapter-offset-input"
-        />
-      </label>
       <p className="research-chapter-help">
-        Chapters: {"{"}"1": ["Title", startPage, endPage], ...{"}"}
+        Chapters: {"{"}"1": ["Title", startPage], ...{"}"}
       </p>
       <textarea
         value={json}
@@ -56,7 +48,10 @@ export default function ChapterEditor({ config, onSave, onCancel, saving }) {
       />
       {error && <p className="research-error">{error}</p>}
       <div className="research-chapter-actions">
-        <button onClick={onCancel} className="research-btn research-btn-secondary">
+        <button
+          onClick={onCancel}
+          className="research-btn research-btn-secondary"
+        >
           Cancel
         </button>
         <button
@@ -64,9 +59,9 @@ export default function ChapterEditor({ config, onSave, onCancel, saving }) {
           disabled={saving}
           className="research-btn research-btn-primary"
         >
-          {saving ? 'Saving...' : 'Save'}
+          {saving ? "Saving..." : "Save"}
         </button>
       </div>
     </div>
-  )
+  );
 }

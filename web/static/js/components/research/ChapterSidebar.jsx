@@ -1,45 +1,69 @@
-import React from 'react'
+import React from "react";
 
 export default function ChapterSidebar({
   chapters,
   annotationCounts,
   totalAnnotations,
+  unchapteredCount,
   selectedChapter,
   onSelectChapter,
+  excludeChaptered,
+  onToggleExcludeChaptered,
   onEditChapters,
   darkMode,
   onToggleDarkMode,
   syncing,
   onSync,
   collapsed,
-  onToggleCollapse
+  onToggleCollapse,
 }) {
   if (collapsed) {
     return (
       <div className="research-chapter-sidebar collapsed">
-        <button onClick={onToggleCollapse} className="research-theme-toggle-small" title="Expand">
+        <button
+          onClick={onToggleCollapse}
+          className="research-theme-toggle-small"
+          title="Expand"
+        >
           ▸
         </button>
       </div>
-    )
+    );
   }
 
   const headerButtons = (
     <div className="research-chapter-header-buttons">
-      <button onClick={onToggleCollapse} className="research-theme-toggle-small" title="Collapse">
+      <button
+        onClick={onToggleCollapse}
+        className="research-theme-toggle-small"
+        title="Collapse"
+      >
         ◂
       </button>
-      <button onClick={onEditChapters} className="research-theme-toggle-small" title="Edit chapters">
+      <button
+        onClick={onEditChapters}
+        className="research-theme-toggle-small"
+        title="Edit chapters"
+      >
         ✎
       </button>
-      <button onClick={onSync} disabled={syncing} className="research-theme-toggle-small" title="Sync">
-        {syncing ? '...' : '↻'}
+      <button
+        onClick={onSync}
+        disabled={syncing}
+        className="research-theme-toggle-small"
+        title="Sync"
+      >
+        {syncing ? "..." : "↻"}
       </button>
-      <button onClick={onToggleDarkMode} className="research-theme-toggle-small" title={darkMode ? 'Light mode' : 'Dark mode'}>
-        {darkMode ? '☀' : '●'}
+      <button
+        onClick={onToggleDarkMode}
+        className="research-theme-toggle-small"
+        title={darkMode ? "Light mode" : "Dark mode"}
+      >
+        {darkMode ? "☀" : "●"}
       </button>
     </div>
-  )
+  );
 
   if (chapters.length === 0) {
     return (
@@ -50,7 +74,7 @@ export default function ChapterSidebar({
         </div>
         <p className="research-chapter-empty">No chapters defined</p>
       </div>
-    )
+    );
   }
 
   return (
@@ -61,33 +85,54 @@ export default function ChapterSidebar({
       </div>
       <div className="research-chapter-list">
         <div
-          className={`research-chapter-item ${selectedChapter === null ? 'selected' : ''}`}
+          className={`research-chapter-item ${selectedChapter === null ? "selected" : ""}`}
           onClick={() => onSelectChapter(null)}
         >
           <div className="research-chapter-item-title">
-            {selectedChapter === null && <span className="research-chapter-marker">▶ </span>}
+            {selectedChapter === null && (
+              <span className="research-chapter-marker">▶ </span>
+            )}
             All Annotations
+            {chapters.length > 0 && (
+              <button
+                className="research-theme-toggle-small"
+                title={excludeChaptered ? "Show all" : "Hide chaptered"}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleExcludeChaptered();
+                }}
+                style={{ marginLeft: 6, opacity: excludeChaptered ? 1 : 0.4 }}
+              >
+                ⊘
+              </button>
+            )}
           </div>
           <div className="research-chapter-item-meta">
-            {totalAnnotations} total
+            {excludeChaptered
+              ? `${unchapteredCount} uncategorized`
+              : `${totalAnnotations} total`}
           </div>
         </div>
         {chapters.map((chapter) => (
           <div
             key={chapter.key}
-            className={`research-chapter-item ${selectedChapter === chapter.key ? 'selected' : ''}`}
+            className={`research-chapter-item ${selectedChapter === chapter.key ? "selected" : ""}`}
             onClick={() => onSelectChapter(chapter.key)}
           >
             <div className="research-chapter-item-title">
-              {selectedChapter === chapter.key && <span className="research-chapter-marker">▶ </span>}
+              {selectedChapter === chapter.key && (
+                <span className="research-chapter-marker">▶ </span>
+              )}
               {chapter.title}
             </div>
             <div className="research-chapter-item-meta">
-              ({chapter.startPage}-{chapter.endPage}) · {annotationCounts[chapter.key] || 0}
+              (p. {chapter.startPage}
+              {chapter.endPage === Infinity ? "+" : `–${chapter.endPage}`}) ·{" "}
+              {annotationCounts[chapter.key] || 0}
             </div>
           </div>
         ))}
       </div>
     </div>
-  )
+  );
 }
