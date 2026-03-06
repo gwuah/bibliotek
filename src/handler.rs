@@ -75,6 +75,7 @@ pub async fn healthcheck() -> impl IntoResponse {
 
 pub async fn get_books(State(state): State<AppState>, Query(qp): Query<QueryParams>) -> Response {
     let hp = qp.into_handler_params();
+    let search_query = hp.query.clone();
     let db_call = state.db.get_books(hp).await;
 
     if let Err(e) = db_call {
@@ -82,7 +83,7 @@ pub async fn get_books(State(state): State<AppState>, Query(qp): Query<QueryPara
         return crate::bad_request(APIResponse::new_from_msg("failed to get books"));
     }
 
-    let total_books = state.db.count_books().await.ok();
+    let total_books = state.db.count_books(search_query.as_deref()).await.ok();
 
     tracing::info!("got books");
     crate::good_response(APIResponse {

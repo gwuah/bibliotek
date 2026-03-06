@@ -176,8 +176,23 @@ impl Database {
             .collect()
     }
 
-    pub async fn count_books(&self) -> Result<u32> {
-        let mut rows = self.conn.query("SELECT COUNT(*) FROM books", ()).await?;
+    pub async fn count_books(&self, query: Option<&str>) -> Result<u32> {
+        let mut rows = if let Some(search) = query {
+            let sql = r#"
+SELECT COUNT(DISTINCT books.id) FROM books
+LEFT JOIN book_authors ON book_authors.book_id = books.id
+LEFT JOIN authors ON authors.id = book_authors.author_id
+LEFT JOIN book_tags ON book_tags.book_id = books.id
+LEFT JOIN tags ON tags.id = book_tags.tag_id
+LEFT JOIN book_categories ON book_categories.book_id = books.id
+LEFT JOIN categories ON categories.id = book_categories.category_id
+WHERE books.title LIKE ? OR authors.name LIKE ? OR tags.name LIKE ? OR categories.name LIKE ?
+"#;
+            let pattern = format!("%{}%", search);
+            self.conn.query(sql, (pattern.clone(), pattern.clone(), pattern.clone(), pattern)).await?
+        } else {
+            self.conn.query("SELECT COUNT(*) FROM books", ()).await?
+        };
         if let Some(row) = rows.next().await? {
             let count: i32 = row.get(0)?;
             return Ok(count as u32);
@@ -206,7 +221,7 @@ LEFT JOIN tags ON tags.id = book_tags.tag_id
 LEFT JOIN book_categories ON book_categories.book_id = books.id
 LEFT JOIN categories ON categories.id = book_categories.category_id
 GROUP BY books.id, books.title, books.url, books.cover_url, books.ratings
-ORDER BY book_id
+ORDER BY book_id DESC
 LIMIT ? OFFSET ?
 "#;
 
@@ -229,9 +244,9 @@ LEFT JOIN book_tags ON book_tags.book_id = books.id
 LEFT JOIN tags ON tags.id = book_tags.tag_id
 LEFT JOIN book_categories ON book_categories.book_id = books.id
 LEFT JOIN categories ON categories.id = book_categories.category_id
-GROUP BY books.id, books.title, books.url, books.cover_url, books.ratings
 WHERE books.title LIKE ? OR authors.name LIKE ? OR tags.name LIKE ? OR categories.name LIKE ?
-ORDER BY book_id
+GROUP BY books.id, books.title, books.url, books.cover_url, books.ratings
+ORDER BY book_id DESC
 LIMIT ? OFFSET ?
 "#;
 
