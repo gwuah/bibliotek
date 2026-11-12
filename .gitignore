@@ -1,0 +1,12 @@
+target/
+node_modules/
+web/dist/
+.dev/
+.env
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.pdf
+.DS_Store
+migration-report.json
