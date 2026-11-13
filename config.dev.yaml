@@ -1,0 +1,5 @@
+environment: development
+data_dir: .dev
+bind: 127.0.0.1:6579
+admin_token: { value: dev-admin-token }
+blob_store: { kind: filesystem }

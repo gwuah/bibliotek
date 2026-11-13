@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Light for liotek</title>
+  <link rel="stylesheet" href="../fonts/barlow.css">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <nav>
+    <h1>&#x1F43D; LIGHT <span class="for">for liotek</span></h1>
+  </nav>
+
+  <div class="toolbar">
+    <button id="toggle" class="toolbar-btn" title="Show or hide highlights on this page">
+      <span class="toolbar-icon">&#x1F441;</span>
+      <span class="toolbar-label">Toggle</span>
+    </button>
+    <button id="sync" class="toolbar-btn" title="Send every highlight to liotek">
+      <span class="toolbar-icon">&#x1F504;</span>
+      <span class="toolbar-label">Sync</span>
+    </button>
+    <button id="settings" class="toolbar-btn" title="Server, token, export and import">
+      <span class="toolbar-icon">&#x2699;</span>
+      <span class="toolbar-label">Settings</span>
+    </button>
+  </div>
+
+  <div id="status" class="status" role="status" hidden></div>
+
+  <div id="confirm-empty" class="confirm" hidden>
+    <p id="confirm-empty-message"></p>
+    <p>Remove every highlight this installation sent to liotek?</p>
+    <div class="actions">
+      <button id="confirm-empty-cancel" type="button">Cancel</button>
+      <button id="confirm-empty-accept" type="button" class="danger">Remove them from liotek</button>
+    </div>
+  </div>
+
+  <p id="last-sync" class="last-sync"></p>
+
+  <div id="stats">
+    <div class="stat">
+      <p class="stat-desc">WEBSITES</p>
+      <p id="total-websites" class="stat-val">0</p>
+    </div>
+    <div class="stat">
+      <p class="stat-desc">HIGHLIGHTS</p>
+      <p id="total-highlights" class="stat-val">0</p>
+    </div>
+  </div>
+
+  <div id="highlights-list"></div>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

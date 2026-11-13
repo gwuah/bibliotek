@@ -1,0 +1,36 @@
+# Copy to ~/.liotek/config.yaml. Relative paths are resolved against this file's directory.
+# A secret is written either as { env: VARIABLE_NAME } or as { value: "..." }.
+
+# development | preview | production
+environment: preview
+
+data_dir: /Users/you/.liotek
+
+# 127.0.0.1 for this machine only; 0.0.0.0 to share the library on your network.
+# Reads are open to whoever can reach this address. Every write needs the admin token.
+bind: 0.0.0.0:6578
+admin_token: { env: LIOTEK_ADMIN_TOKEN }
+
+extension_origins: []
+
+database:
+  path: liotek.db # relative to data_dir
+
+blob_store:
+  kind: s3
+  endpoint: https://t3.storage.dev
+  region: auto
+  bucket: liotek-preview
+  # Required (as liotek/<environment>/) when the bucket is shared with anything else.
+  namespace: ""
+  access_key_id: { env: LIOTEK_S3_ACCESS_KEY_ID }
+  secret_access_key: { env: LIOTEK_S3_SECRET_ACCESS_KEY }
+
+# Uncomment to back up on a schedule. Only scheduled backups are pruned.
+# backups:
+#   every_hours: 24 # default 24
+#   keep: 30        # scheduled backups kept; default 30
+
+# Uncomment to enable `POST /api/imports/research`.
+# research:
+#   database_path: /Users/you/Library/Application Support/Research/research.db

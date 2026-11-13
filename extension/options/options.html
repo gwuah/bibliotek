@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Light for liotek: Settings</title>
+  <link rel="stylesheet" href="../fonts/barlow.css">
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <main>
+    <h1>Light for liotek</h1>
+
+    <section>
+      <h2>Server</h2>
+      <form id="settings-form">
+        <label for="server-url">Server URL</label>
+        <input id="server-url" type="url" autocomplete="off" spellcheck="false">
+
+        <label for="admin-token">Admin token</label>
+        <input id="admin-token" type="password" autocomplete="off" spellcheck="false">
+
+        <div class="actions">
+          <button type="submit">Save</button>
+        </div>
+        <p id="settings-status" class="status" role="status" hidden></p>
+      </form>
+    </section>
+
+    <section>
+      <h2>This installation</h2>
+      <dl>
+        <dt>Installation ID</dt>
+        <dd><code id="installation-id"></code></dd>
+        <dt>Extension origin</dt>
+        <dd><code id="extension-origin"></code></dd>
+      </dl>
+      <p class="hint">Add this origin to <code>extension_origins</code> in liotek's config file.</p>
+    </section>
+
+    <section>
+      <h2>Export and import</h2>
+      <p class="hint">
+        An export holds every highlight and note here and this installation's ID. Importing it
+        into a fresh copy of the extension adopts that ID, so liotek recognises the highlights it
+        already has instead of storing them twice.
+      </p>
+      <div class="actions start">
+        <button id="export" type="button">Export to file</button>
+        <label class="button" for="import-file">Import from file</label>
+        <input id="import-file" type="file" accept="application/json,.json" hidden>
+      </div>
+      <p id="transfer-status" class="status" role="status" hidden></p>
+    </section>
+  </main>
+  <script type="module" src="options.js"></script>
+</body>
+</html>

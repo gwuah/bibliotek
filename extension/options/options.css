@@ -1,0 +1,128 @@
+body {
+  margin: 0;
+  font-family: "Barlow", sans-serif;
+  font-weight: 400;
+  font-size: 15px;
+  color: #1a1a1a;
+  background: white;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+main {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 32px 16px;
+}
+
+h1 {
+  margin: 0 0 24px;
+  font-size: 22px;
+  font-weight: 500;
+}
+
+h2 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #666;
+}
+
+section {
+  padding: 20px 0;
+  border-top: 1px solid #eee;
+}
+
+label {
+  display: block;
+  margin: 12px 0 4px;
+}
+
+input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 7px 8px;
+  font: inherit;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 16px;
+  margin: 0;
+}
+
+dt {
+  color: #666;
+}
+
+dd {
+  margin: 0;
+  user-select: all;
+}
+
+.hint {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: #666;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.actions.start {
+  justify-content: flex-start;
+}
+
+button,
+label.button {
+  display: inline-block;
+  margin: 0;
+  padding: 6px 12px;
+  font: inherit;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  background: white;
+  cursor: pointer;
+}
+
+button:hover,
+label.button:hover {
+  background: #f5f5f5;
+}
+
+.status {
+  margin: 12px 0 0;
+  padding: 8px;
+  font-size: 13px;
+  border-radius: 3px;
+  overflow-wrap: anywhere;
+}
+
+.status.success {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+  border: 1px solid #a5d6a7;
+}
+
+.status.error {
+  background-color: #ffebee;
+  color: #c62828;
+  border: 1px solid #ef9a9a;
+}

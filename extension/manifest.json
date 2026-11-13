@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "Light for liotek",
+  "short_name": "Light liotek",
+  "version": "2.0.0",
+  "description": "Highlight and annotate web pages, and sync them to your liotek library.",
+  "permissions": ["storage", "contextMenus"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content/loader.js"]
+    }
+  ],
+  "action": {
+    "default_title": "Light for liotek",
+    "default_popup": "popup/popup.html"
+  },
+  "options_ui": {
+    "page": "options/options.html",
+    "open_in_tab": true
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["content/*.js", "lib/*.js", "fonts/*.woff2"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

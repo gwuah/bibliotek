@@ -1,0 +1,9 @@
+{
+  "name": "light-for-liotek",
+  "private": true,
+  "description": "Plain MV3 files, no build step. package.json exists only so Node treats the sources as ES modules for the tests.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  }
+}
