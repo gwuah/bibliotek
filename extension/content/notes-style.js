@@ -46,6 +46,7 @@ export const UI_CSS = `
   .note.lit .text, .note.editing .text { opacity: 1; }
   .note.floating { padding: 8px 10px 8px 14px; }
   .text { outline: none; white-space: pre-wrap; overflow-wrap: break-word; min-height: 1.5em; }
+  .note.editing .text { min-height: 7.25em; }
   .text:empty::before { content: "Write a note"; opacity: 0.4; }
   .hint {
     display: none; margin-top: 10px;
@@ -62,4 +63,10 @@ export const UI_CSS = `
     white-space: nowrap; border-radius: 3px;
   }
   .x.armed { font-size: 13px !important; }
+  .notice {
+    position: fixed; right: 16px; bottom: 16px; display: none; max-width: 320px;
+    box-sizing: border-box; padding: 10px 14px; border-left: 2px solid ${RED}; border-radius: 3px;
+    background: #fff; color: #222; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+    font-family: ${FONT}; font-weight: 500; font-size: 13px; line-height: 1.4;
+  }
 `;

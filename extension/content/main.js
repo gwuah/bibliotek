@@ -20,11 +20,24 @@ const notes = createNotes({
   deleteHighlight,
 });
 
+const STALE_NOTICE = "Light for liotek was updated or reloaded. Refresh this page to keep highlighting.";
+
+// After the extension is reloaded or updated, Chrome leaves this script running in open
+// tabs but cuts it off from the extension, and does not inject a new one until a reload.
+function extensionGone() {
+  return !globalThis.chrome?.runtime?.id;
+}
+
 function reportError(error) {
-  console.error("Light for liotek:", error);
+  if (extensionGone()) notes.showNotice(STALE_NOTICE);
+  else console.error("Light for liotek:", error);
 }
 
 async function highlightSelection() {
+  if (extensionGone()) {
+    notes.showNotice(STALE_NOTICE);
+    return;
+  }
   const captured = captureSelection();
   if (!captured) return;
 
@@ -32,6 +45,7 @@ async function highlightSelection() {
     groupID: Date.now(),
     repr: captured.repr,
     chunks: captured.chunks,
+    anchor: captured.anchor,
     url: window.location.href,
     date: new Date().toISOString(),
   };
@@ -41,11 +55,19 @@ async function highlightSelection() {
     reportError(error);
     return;
   }
-  paintHighlight(highlight);
+  if (!paintHighlight(highlight)) {
+    console.error("Light for liotek: the selected text changed before it could be highlighted.");
+    commands.deleteHighlight(highlight.groupID).catch(reportError);
+    return;
+  }
   notes.editNew(highlight);
 }
 
 async function deleteHighlight(groupId) {
+  if (extensionGone()) {
+    notes.showNotice(STALE_NOTICE);
+    return;
+  }
   try {
     await commands.deleteHighlight(groupId);
     unpaintHighlight(groupId);

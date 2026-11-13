@@ -12,6 +12,7 @@ const EDGE = 32;
 const MIN_WIDTH = 150;
 const STACK_GAP = 14;
 const FLOATING_WIDTH = 320;
+const NOTICE_MS = 8000;
 
 export function createNotes({ saveNote, deleteHighlight }) {
   const highlights = new Map();
@@ -21,6 +22,7 @@ export function createNotes({ saveNote, deleteHighlight }) {
   let armedRemove = false;
   let layoutQueued = false;
   let xTimer = null;
+  let noticeTimer = null;
 
   const noteText = (groupId) => noteOf(highlights.get(groupId));
 
@@ -49,12 +51,18 @@ export function createNotes({ saveNote, deleteHighlight }) {
     return "#fff";
   }
 
+  // Pages that render the whole document (React on <html>, for one) can remove what was
+  // added to it, so the UI is put back whenever it is used.
   function ensureUI() {
-    if (ui) return ui;
+    ui ??= buildUI();
+    if (!ui.pageStyle.isConnected) (document.head || document.documentElement).appendChild(ui.pageStyle);
+    if (!ui.host.isConnected) document.documentElement.appendChild(ui.host);
+    return ui;
+  }
 
+  function buildUI() {
     const pageStyle = document.createElement("style");
     pageStyle.textContent = pageCss();
-    (document.head || document.documentElement).appendChild(pageStyle);
 
     const host = document.createElement("light-notes");
     host.style.cssText = "position:absolute;top:0;left:0;width:0;height:0;overflow:visible;z-index:2147483646;";
@@ -62,7 +70,6 @@ export function createNotes({ saveNote, deleteHighlight }) {
     const style = document.createElement("style");
     style.textContent = UI_CSS;
     root.appendChild(style);
-    document.documentElement.appendChild(host);
 
     for (const type of ["keydown", "keyup", "keypress", "input"]) {
       host.addEventListener(type, (e) => e.stopPropagation());
@@ -76,8 +83,19 @@ export function createNotes({ saveNote, deleteHighlight }) {
     x.addEventListener("click", onXClick);
     root.appendChild(x);
 
-    ui = { root, x };
-    return ui;
+    const notice = element("div", "notice");
+    notice.setAttribute("role", "status");
+    root.appendChild(notice);
+
+    return { pageStyle, host, root, x, notice };
+  }
+
+  function showNotice(text) {
+    const { notice } = ensureUI();
+    notice.textContent = text;
+    notice.style.display = "block";
+    clearTimeout(noticeTimer);
+    noticeTimer = setTimeout(() => (notice.style.display = "none"), NOTICE_MS);
   }
 
   function showX(span) {
@@ -169,6 +187,7 @@ export function createNotes({ saveNote, deleteHighlight }) {
 
   function layout() {
     layoutQueued = false;
+    ensureUI();
     const wanted = new Set();
     if (highlightsVisible()) {
       for (const groupId of highlights.keys()) {
@@ -359,6 +378,7 @@ export function createNotes({ saveNote, deleteHighlight }) {
   return {
     setLibrary,
     refreshMarkers,
+    showNotice,
 
     editNew(highlight) {
       const groupId = String(highlight.groupID);

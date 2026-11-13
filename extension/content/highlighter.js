@@ -1,6 +1,11 @@
+import { anchorAt, compactIndexOf, compactText, compactView, locate } from "../lib/anchor.js";
+
 export const HIGHLIGHT_CLASS = "text-highlighter-highlight";
 const COLOR = "rgb(254, 254, 197)";
 const HIDDEN_CLASS = "light-off";
+const UNPAINTABLE = new Set(["script", "style", "noscript", "textarea", "template"]);
+// A span is not allowed directly inside these, so whitespace between their children stays unwrapped.
+const NO_INLINE_CHILDREN = new Set(["table", "thead", "tbody", "tfoot", "tr", "colgroup", "ul", "ol", "dl", "select"]);
 
 export function spansOf(groupId) {
   return Array.from(
@@ -20,41 +25,35 @@ export function captureSelection() {
   const selection = window.getSelection();
   if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return null;
 
-  const contents = selection.getRangeAt(0).cloneContents();
-  const repr = contents.textContent;
+  const stream = textStream(document.body);
+  const bounds = stream.boundsOf(selection.getRangeAt(0));
+  if (!bounds) return null;
+
+  const repr = stream.text.slice(bounds.start, bounds.end);
   if (repr.trim() === "") return null;
 
-  const chunks = leavesOf(contents)
-    .map((leaf) => leaf.textContent)
+  const chunks = stream
+    .slicesBetween(bounds.start, bounds.end)
+    .map(({ node, from, to }) => node.nodeValue.slice(from, to))
     .filter((text) => text.trim() !== "");
-  return { repr, chunks };
-}
-
-function leavesOf(node, leaves = []) {
-  if (node.childNodes.length === 0) leaves.push(node);
-  for (const child of node.childNodes) leavesOf(child, leaves);
-  return leaves;
+  const start = compactIndexOf(stream.origin, bounds.start);
+  const end = compactIndexOf(stream.origin, bounds.end);
+  return { repr, chunks, anchor: anchorAt(stream.compact, start, end) };
 }
 
 export function paintHighlight(highlight) {
-  const chunks = highlight.chunks || [];
-  if (!chunks.length) return;
+  if (spansOf(highlight.groupID).length) return true;
+  const quote = compactText((highlight.chunks || []).join(""));
+  if (!quote) return false;
 
   const stream = textStream(document.body);
-  const start = stream.text.indexOf(chunks.join(""));
-  if (start === -1) return;
+  const at = locate(stream.compact, quote, highlight.anchor);
+  if (at === -1) return false;
 
-  const slices = [];
-  let offset = start;
-  for (const chunk of chunks) {
-    slices.push({ from: stream.positionAt(offset), to: stream.positionAt(offset + chunk.length) });
-    offset += chunk.length;
-  }
-
-  // Wrapping splits text nodes, so go right to left: earlier positions stay valid.
-  for (let i = slices.length - 1; i >= 0; i--) {
-    wrapRange(slices[i], highlight.groupID, stream);
-  }
+  const start = stream.origin[at];
+  const end = stream.origin[at + quote.length - 1] + 1;
+  for (const slice of stream.slicesBetween(start, end)) wrapSlice(slice, highlight.groupID);
+  return spansOf(highlight.groupID).length > 0;
 }
 
 function textStream(root) {
@@ -66,61 +65,67 @@ function textStream(root) {
 
   const starts = [0];
   for (const node of nodes) starts.push(starts[starts.length - 1] + node.nodeValue.length);
+  const text = nodes.map((node) => node.nodeValue).join("");
+  const { compact, origin } = compactView(text);
+
+  function nodeIndexAt(index) {
+    let lo = 0;
+    let hi = nodes.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (starts[mid] <= index) lo = mid;
+      else hi = mid - 1;
+    }
+    return lo;
+  }
 
   return {
-    nodes,
-    text: nodes.map((node) => node.nodeValue).join(""),
-    indexOf: new Map(nodes.map((node, i) => [node, i])),
-    positionAt(index) {
-      let lo = 0;
-      let hi = nodes.length - 1;
-      while (lo < hi) {
-        const mid = (lo + hi + 1) >> 1;
-        if (starts[mid] <= index) lo = mid;
-        else hi = mid - 1;
+    text,
+    compact,
+    origin,
+
+    boundsOf(range) {
+      let start = null;
+      let end = null;
+      nodes.forEach((node, i) => {
+        if (!range.intersectsNode(node)) return;
+        const from = node === range.startContainer ? range.startOffset : 0;
+        const to = node === range.endContainer ? range.endOffset : node.nodeValue.length;
+        if (from >= to) return;
+        start ??= starts[i] + from;
+        end = starts[i] + to;
+      });
+      return start === null ? null : { start, end };
+    },
+
+    slicesBetween(start, end) {
+      if (!nodes.length || start >= end) return [];
+      const slices = [];
+      for (let i = nodeIndexAt(start); i < nodes.length && starts[i] < end; i++) {
+        const from = Math.max(0, start - starts[i]);
+        const to = Math.min(nodes[i].nodeValue.length, end - starts[i]);
+        if (from < to) slices.push({ node: nodes[i], from, to });
       }
-      return { node: nodes[lo], offset: index - starts[lo] };
+      return slices;
     },
   };
 }
 
 function isPaintable(node) {
   if (!node.nodeValue || !node.parentNode) return false;
-  const tag = node.parentNode.nodeName.toLowerCase();
-  if (tag === "script" || tag === "style" || tag === "noscript") return false;
-  return !insideHighlight(node);
+  return !UNPAINTABLE.has(node.parentNode.nodeName.toLowerCase());
 }
 
-function insideHighlight(node) {
-  return Boolean(highlightAt(node.parentElement));
-}
+function wrapSlice({ node, from, to }, groupId) {
+  const text = node.nodeValue;
+  const part = text.slice(from, to);
+  if (part.trim() === "" && NO_INLINE_CHILDREN.has(node.parentNode.nodeName.toLowerCase())) return;
 
-function wrapRange({ from, to }, groupId, stream) {
-  const first = stream.indexOf.get(from.node);
-  const last = stream.indexOf.get(to.node);
-  if (first === undefined || last === undefined) return;
-
-  if (first === last) {
-    wrapSlice(from.node, from.offset, to.offset, groupId);
-    return;
-  }
-  wrapSlice(from.node, from.offset, from.node.nodeValue.length, groupId);
-  for (let i = first + 1; i < last; i++) {
-    const node = stream.nodes[i];
-    wrapSlice(node, 0, node.nodeValue.length, groupId);
-  }
-  wrapSlice(to.node, 0, to.offset, groupId);
-}
-
-function wrapSlice(textNode, start, end, groupId) {
-  if (!textNode || start >= end || insideHighlight(textNode)) return;
-
-  const text = textNode.nodeValue;
   const fragment = document.createDocumentFragment();
-  if (start > 0) fragment.appendChild(document.createTextNode(text.slice(0, start)));
-  fragment.appendChild(highlightSpan(text.slice(start, end), groupId));
-  if (end < text.length) fragment.appendChild(document.createTextNode(text.slice(end)));
-  textNode.parentNode.replaceChild(fragment, textNode);
+  if (from > 0) fragment.appendChild(document.createTextNode(text.slice(0, from)));
+  fragment.appendChild(highlightSpan(part, groupId));
+  if (to < text.length) fragment.appendChild(document.createTextNode(text.slice(to)));
+  node.parentNode.replaceChild(fragment, node);
 }
 
 function highlightSpan(text, groupId) {
@@ -136,7 +141,7 @@ function highlightSpan(text, groupId) {
 export function unpaintHighlight(groupId) {
   for (const span of spansOf(groupId)) {
     const parent = span.parentNode;
-    parent.replaceChild(document.createTextNode(span.textContent), span);
+    span.replaceWith(...span.childNodes);
     parent.normalize();
   }
 }
