@@ -4,8 +4,19 @@ body {
   padding: 10px;
   font-family: "Barlow", sans-serif;
   font-weight: 400;
+  text-transform: lowercase;
   color: black;
   background: white;
+}
+
+button {
+  font: inherit;
+  text-transform: inherit;
+}
+
+.highlight-text,
+.page-item {
+  text-transform: none;
 }
 
 [hidden] {
@@ -22,12 +33,13 @@ nav {
 h1 {
   margin: 0;
   font-size: 18px;
-  font-weight: 500;
+  font-weight: 600;
   text-align: center;
 }
 
 h1 .for {
   font-size: 12px;
+  font-weight: 400;
   color: #666;
   letter-spacing: 0.3px;
 }
@@ -46,7 +58,6 @@ h1 .for {
   align-items: center;
   gap: 4px;
   padding: 8px 12px;
-  font: inherit;
   background: none;
   border: none;
   border-radius: 6px;
@@ -121,7 +132,6 @@ h1 .for {
 
 .actions button {
   padding: 5px 10px;
-  font: inherit;
   border: 1px solid #ccc;
   border-radius: 2px;
   background: white;
@@ -150,7 +160,7 @@ h1 .for {
   column-gap: 15px;
   padding-bottom: 10px;
   margin-bottom: 10px;
-  font-weight: 500;
+  font-weight: 600;
   text-align: center;
 }
 

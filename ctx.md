@@ -107,7 +107,13 @@ liotek schema no newer than the binary) before moving it into place.
 The development admin token is `dev-admin-token`. Preview and production configs are
 `~/.liotek/config.preview.yaml` and `~/.liotek/config.yaml` (mode 0600). Each holds its own
 admin token and its own Tigris key: `liotek-preview-bibliotek-ro` (ReadOnly on `bibliotek`)
-and `liotek-production` (Editor on `bibliotek`). Bibliotek's own key is never shared.
+and `liotek-production`. Bibliotek's own key is never shared.
+
+`liotek-production` has no bucket role; its only grant is the Tigris IAM policy
+`liotek-production`, kept in [ops/tigris-production-policy.json](ops/tigris-production-policy.json):
+read and list all of `bibliotek`, write only under `liotek/production/`, delete only under
+`liotek/production/backups/scheduled/`. A new feature that needs another S3 action needs
+the policy updated too. The `bibliotek` bucket has no delete protection or soft delete.
 
 The extension's ID is pinned by the `key` in `extension/manifest.json`, so its origin is
 `chrome-extension://emeinmdallkcjcidlcliaiefahmimoel` on every machine; that is what

@@ -3,8 +3,18 @@ body {
   font-family: "Barlow", sans-serif;
   font-weight: 400;
   font-size: 15px;
+  text-transform: lowercase;
   color: #1a1a1a;
   background: white;
+}
+
+button {
+  font: inherit;
+  text-transform: inherit;
+}
+
+input {
+  text-transform: none;
 }
 
 [hidden] {
@@ -20,15 +30,13 @@ main {
 h1 {
   margin: 0 0 24px;
   font-size: 22px;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 h2 {
   margin: 0 0 12px;
   font-size: 15px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
+  font-weight: 600;
   color: #666;
 }
 
@@ -52,8 +60,7 @@ input {
 }
 
 code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 13px;
+  font-family: inherit;
   overflow-wrap: anywhere;
 }
 
