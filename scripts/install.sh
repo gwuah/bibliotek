@@ -3,13 +3,14 @@
 set -euo pipefail
 
 NAME=liotek
-LABEL="com.$(id -un).$NAME"
+LABEL="${LIOTEK_LABEL:-com.$(id -un).$NAME}"
 DOMAIN="gui/$(id -u)"
 
 NEW_BINARY="${1:-target/release/$NAME}"
 BIN_DIR="$HOME/.local/bin"
 BINARY="$BIN_DIR/$NAME"
 PREVIOUS="$BINARY.previous"
+FAILED="$BINARY.failed"
 CONFIG="${LIOTEK_CONFIG:-$HOME/.$NAME/config.yaml}"
 LOG_DIR="$HOME/Library/Logs/$NAME"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
@@ -65,8 +66,39 @@ wait_until_healthy() {
   return 1
 }
 
+# Taken with the installed binary: any liotek command migrates the database it opens,
+# so the new one would back up an already-migrated schema the old one cannot read.
+back_up_before_upgrade() {
+  if [ ! -x "$BINARY" ]; then
+    return
+  fi
+  if [ "${LIOTEK_SKIP_BACKUP:-}" = 1 ]; then
+    echo "Skipping the pre-upgrade backup (LIOTEK_SKIP_BACKUP=1)"
+    return
+  fi
+  local output
+  output=$("$BINARY" backup --config "$CONFIG") \
+    || fail "could not back up the database before upgrading; nothing was changed"
+  BACKUP_NAME=$(printf '%s\n' "$output" | sed -nE 's/.*"name": *"([^"]+)".*/\1/p' | head -n 1)
+  [ -n "$BACKUP_NAME" ] || fail "the backup did not report its name; nothing was changed"
+  echo "Backed up the database as $BACKUP_NAME"
+}
+
+# Used when the previous binary cannot start either: the new one has migrated the
+# database to a schema the previous one refuses.
+restore_pre_upgrade_backup() {
+  launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true
+  sleep 1
+  "$FAILED" restore --config "$CONFIG" --from "$BACKUP_NAME" --set-aside-current \
+    || fail "could not restore $BACKUP_NAME; liotek is stopped. Restore it by hand with \`liotek restore\`"
+  launchctl bootstrap "$DOMAIN" "$PLIST"
+}
+
 echo "Checking $NEW_BINARY against $CONFIG"
 "$NEW_BINARY" doctor --config "$CONFIG" || fail "doctor found a problem; nothing was changed"
+
+BACKUP_NAME=""
+back_up_before_upgrade
 
 mkdir -p "$BIN_DIR" "$LOG_DIR" "$(dirname "$PLIST")"
 
@@ -87,18 +119,25 @@ fi
 start_or_restart "$plist_state"
 
 if wait_until_healthy; then
+  rm -f "$FAILED"
   echo "Installed: $("$BINARY" --version)"
   echo "Logs: $LOG_DIR/$NAME.log"
   exit 0
 fi
 
-echo "install: the new binary did not become healthy" >&2
-if [ -f "$PREVIOUS" ]; then
-  mv -f "$PREVIOUS" "$BINARY"
-  launchctl kickstart -k "$DOMAIN/$LABEL"
-  if wait_until_healthy; then
-    fail "restored the previous binary, which is running again; see $LOG_DIR/$NAME.log"
-  fi
-  fail "restored the previous binary, but it is not healthy either; see $LOG_DIR/$NAME.log"
+echo "install: the new binary did not become healthy; it is kept as $FAILED" >&2
+[ -f "$PREVIOUS" ] || fail "there is no previous binary to go back to; see $LOG_DIR/$NAME.log"
+mv -f "$BINARY" "$FAILED"
+mv -f "$PREVIOUS" "$BINARY"
+launchctl kickstart -k "$DOMAIN/$LABEL"
+if wait_until_healthy; then
+  fail "went back to the previous binary, which is running again; see $LOG_DIR/$NAME.log"
 fi
-fail "there is no previous binary to restore; see $LOG_DIR/$NAME.log"
+
+[ -n "$BACKUP_NAME" ] || fail "the previous binary is not healthy either, and there is no backup to restore; see $LOG_DIR/$NAME.log"
+echo "install: the previous binary cannot start on the upgraded database; restoring $BACKUP_NAME" >&2
+restore_pre_upgrade_backup
+if wait_until_healthy; then
+  fail "restored $BACKUP_NAME and the previous binary is running again; the upgraded database is under set-aside/ in the data directory"
+fi
+fail "restored $BACKUP_NAME, but the previous binary is still not healthy; see $LOG_DIR/$NAME.log"

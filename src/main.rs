@@ -63,6 +63,9 @@ enum Command {
         /// A backup name from `liotek backups list`, or the path of a local export
         #[arg(long)]
         from: String,
+        /// Move an existing database into <data_dir>/set-aside/ instead of refusing
+        #[arg(long)]
+        set_aside_current: bool,
     },
     /// Manage upload sessions
     #[command(subcommand)]
@@ -177,10 +180,19 @@ async fn run(cli: Cli) -> anyhow::Result<ExitCode> {
             let backups = backup::list(blobs.as_ref()).await?;
             println!("{}", serde_json::to_string_pretty(&backups)?);
         }
-        Command::Restore { config, from } => {
+        Command::Restore {
+            config,
+            from,
+            set_aside_current,
+        } => {
             let config = config.load()?;
             let blobs = blob::open(&config.blob_store).await?;
-            let restored = backup::restore(&config, blobs.as_ref(), &RestoreSource::parse(&from)).await?;
+            let source = RestoreSource::parse(&from);
+            let restored = if set_aside_current {
+                backup::restore_setting_aside(&config, blobs.as_ref(), &source).await?
+            } else {
+                backup::restore(&config, blobs.as_ref(), &source).await?
+            };
             println!("{}", serde_json::to_string_pretty(&restored)?);
         }
         Command::Uploads(UploadsCommand::Gc { config, dry_run }) => {

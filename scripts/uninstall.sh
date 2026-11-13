@@ -3,7 +3,7 @@
 set -euo pipefail
 
 NAME=liotek
-LABEL="com.$(id -un).$NAME"
+LABEL="${LIOTEK_LABEL:-com.$(id -un).$NAME}"
 DOMAIN="gui/$(id -u)"
 
 launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true

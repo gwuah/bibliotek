@@ -12,7 +12,7 @@ can be installed side by side.
 1. Open `chrome://extensions` and turn on Developer mode.
 2. Load unpacked › choose this `extension/` directory.
 3. Open the extension's Settings (the gear in the popup):
-   - **Server URL**: `http://127.0.0.1:6578` by default. Saving asks Chrome for access to
+   - **Server URL**: `http://127.0.0.1:5678` by default. Saving asks Chrome for access to
      that host, and only that host.
    - **Admin token**: the daemon's `admin_token`.
    - Copy the **extension origin** shown there (`chrome-extension://<id>`) into

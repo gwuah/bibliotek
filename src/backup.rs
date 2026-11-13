@@ -380,13 +380,42 @@ impl fmt::Display for RestoreSource {
 pub struct Restored {
     pub database: PathBuf,
     pub from: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub set_aside: Option<PathBuf>,
     #[serde(flatten)]
     pub counts: LibraryCounts,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Existing {
+    Refuse,
+    SetAside,
+}
+
 pub async fn restore(config: &Config, blobs: &dyn BlobStore, source: &RestoreSource) -> Result<Restored> {
+    restore_with(config, blobs, source, Existing::Refuse).await
+}
+
+/// The current database is moved, never deleted, and only once the copy replacing it has
+/// been verified, so a bad backup cannot displace a working database.
+pub async fn restore_setting_aside(
+    config: &Config,
+    blobs: &dyn BlobStore,
+    source: &RestoreSource,
+) -> Result<Restored> {
+    restore_with(config, blobs, source, Existing::SetAside).await
+}
+
+async fn restore_with(
+    config: &Config,
+    blobs: &dyn BlobStore,
+    source: &RestoreSource,
+    existing: Existing,
+) -> Result<Restored> {
     let database = &config.database.path;
-    ensure_absent(database)?;
+    if existing == Existing::Refuse {
+        ensure_absent(database)?;
+    }
     ensure_nothing_listens(config)?;
 
     let staged = StagedFile::new(&config.temp_dir(), "restore")?;
@@ -397,13 +426,40 @@ pub async fn restore(config: &Config, blobs: &dyn BlobStore, source: &RestoreSou
         RestoreSource::File(path) => copy_local(path, staged.path())?,
     }
     let counts = verify(staged.path()).await?;
+    let set_aside = match existing {
+        Existing::Refuse => None,
+        Existing::SetAside => set_aside(database, &config.data_dir)?,
+    };
     move_into_place(staged.path(), database)?;
 
     Ok(Restored {
         database: database.clone(),
         from: source.to_string(),
+        set_aside,
         counts,
     })
+}
+
+fn set_aside(database: &Path, data_dir: &Path) -> Result<Option<PathBuf>> {
+    let present: Vec<PathBuf> = sqlite_files(database)
+        .into_iter()
+        .filter(|path| path.exists())
+        .collect();
+    if present.is_empty() {
+        return Ok(None);
+    }
+    let stamp = OffsetDateTime::now_utc()
+        .format(TIMESTAMP)
+        .context("cannot format the set-aside timestamp")?;
+    let destination = data_dir.join("set-aside").join(stamp);
+    std::fs::create_dir_all(&destination)
+        .with_context(|| format!("cannot create {}", destination.display()))?;
+    for path in present {
+        let name = path.file_name().expect("database files have names");
+        std::fs::rename(&path, destination.join(name))
+            .with_context(|| format!("cannot move {} aside", path.display()))?;
+    }
+    Ok(Some(destination))
 }
 
 /// Refuses if the database, or a write-ahead log that SQLite would replay into whatever

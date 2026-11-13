@@ -114,6 +114,34 @@ The extension's ID is pinned by the `key` in `extension/manifest.json`, so its o
 `extension_origins` lists. The matching private key, needed only to package the
 extension, is `~/.liotek/extension-key.pem`.
 
+## Releasing
+
+`make check`, commit and tag, then `make install`. `scripts/install.sh` installs against
+`~/.liotek/config.yaml` (or `LIOTEK_CONFIG`) and:
+
+1. runs `doctor` with the new binary and stops if it fails;
+2. backs the database up with the **installed** binary (`liotek backup`), because any
+   liotek command migrates the database it opens;
+3. swaps the binary atomically, keeping the old one as `liotek.previous`, and restarts
+   the launchd agent;
+4. waits for `liotek health` to report the new revision.
+
+If the new binary is not healthy it is kept as `liotek.failed` and the previous binary
+is started again. If that one cannot start either (the new one migrated the database to
+a schema it refuses), the agent is stopped, the database is moved to
+`<data_dir>/set-aside/<time>/`, the pre-upgrade backup is restored with
+`liotek restore --set-aside-current`, and the previous binary is started on it.
+
+`LIOTEK_SKIP_BACKUP=1` skips the backup (for a store that cannot be written, like
+preview's). `LIOTEK_LABEL` installs under another launchd label, which keeps a test
+install apart from production. The extension has no release step: reload it in
+`chrome://extensions`.
+
+## Switchover
+
+liotek took over from Bibliotek on 2026-11-13. Rollback, retained files, and the
+retirement steps are in [docs/switchover.md](docs/switchover.md).
+
 ## Isolation from Bibliotek
 
 While both run on one machine they must never meet. liotek refuses to start with a

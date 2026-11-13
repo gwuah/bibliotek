@@ -552,3 +552,60 @@ async fn restore_refuses_while_something_listens_on_the_configured_address() {
     ));
     assert!(!config.database.path.exists());
 }
+
+async fn library_with_one_document(dir: &Path) -> liotek::config::Config {
+    let config = config_in(dir);
+    let db = Db::open(&config.database).await.unwrap();
+    db.migrate().await.unwrap();
+    let tx = db.begin().await.unwrap();
+    tx.execute("INSERT INTO documents (kind, title) VALUES ('pdf', 'Anowa')", ())
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+    config
+}
+
+#[tokio::test]
+async fn restore_can_set_the_current_database_aside_instead_of_refusing() {
+    let app = TestApp::start().await;
+    seed_library(&app).await;
+    let elsewhere = tempfile::tempdir().unwrap();
+    let export = export_of(&app, &elsewhere).await;
+    let target = tempfile::tempdir().unwrap();
+    let config = library_with_one_document(target.path()).await;
+
+    let restored =
+        backup::restore_setting_aside(&config, app.state.blobs.as_ref(), &RestoreSource::File(export))
+            .await
+            .unwrap();
+
+    assert_eq!(restored.counts, SEEDED);
+    let set_aside = restored.set_aside.expect("the old database was set aside");
+    assert!(set_aside.starts_with(target.path().join("set-aside")));
+    let old = ReadOnlyDb::open(&set_aside.join("liotek.db")).await.unwrap();
+    assert_eq!(LibraryCounts::read(&old, "main").await.unwrap().documents, 1);
+}
+
+#[tokio::test]
+async fn a_damaged_backup_never_displaces_the_current_database() {
+    let app = TestApp::start().await;
+    let elsewhere = tempfile::tempdir().unwrap();
+    let garbage = elsewhere.path().join("garbage.sqlite");
+    std::fs::write(&garbage, vec![0x5A; 3 * 4096]).unwrap();
+    let target = tempfile::tempdir().unwrap();
+    let config = library_with_one_document(target.path()).await;
+    let before = std::fs::read(&config.database.path).unwrap();
+
+    let refused =
+        backup::restore_setting_aside(&config, app.state.blobs.as_ref(), &RestoreSource::File(garbage)).await;
+
+    assert!(matches!(
+        refused,
+        Err(Error::Invalid {
+            code: "restore_source_corrupt",
+            ..
+        })
+    ));
+    assert_eq!(std::fs::read(&config.database.path).unwrap(), before);
+    assert!(!target.path().join("set-aside").exists());
+}

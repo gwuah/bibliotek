@@ -1,4 +1,4 @@
-export const DEFAULT_SERVER_URL = "http://127.0.0.1:6578";
+export const DEFAULT_SERVER_URL = "http://127.0.0.1:5678";
 
 export class SettingsError extends Error {}
 

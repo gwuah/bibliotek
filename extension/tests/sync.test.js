@@ -11,7 +11,7 @@ const highlights = {
 };
 
 const snapshot = {
-  serverUrl: "http://127.0.0.1:6578",
+  serverUrl: "http://127.0.0.1:5678",
   adminToken: "dev-admin-token",
   installationId: "abc-123",
   highlights,
@@ -33,7 +33,7 @@ function respond(status, body) {
 
 test("a sync is a PUT of exactly the highlights object, refusing empty snapshots by default", () => {
   const { url, init } = buildSyncRequest(snapshot);
-  assert.equal(url, "http://127.0.0.1:6578/api/imports/light/abc-123?confirm_empty=false");
+  assert.equal(url, "http://127.0.0.1:5678/api/imports/light/abc-123?confirm_empty=false");
   assert.equal(init.method, "PUT");
   assert.equal(init.headers.Authorization, "Bearer dev-admin-token");
   assert.deepEqual(Object.keys(JSON.parse(init.body)), ["highlights"]);
@@ -71,11 +71,11 @@ test("a non-JSON failure still says what happened", async () => {
 });
 
 test("server URLs are normalised and checked", () => {
-  assert.equal(normalizeServerUrl(""), "http://127.0.0.1:6578");
-  assert.equal(normalizeServerUrl(" http://host.local:6578/ "), "http://host.local:6578");
+  assert.equal(normalizeServerUrl(""), "http://127.0.0.1:5678");
+  assert.equal(normalizeServerUrl(" http://host.local:5678/ "), "http://host.local:5678");
   assert.equal(normalizeServerUrl("https://lib.example/liotek/"), "https://lib.example/liotek");
   assert.throws(() => normalizeServerUrl("ftp://x"), SettingsError);
   assert.throws(() => normalizeServerUrl("http://x/?a=1"), SettingsError);
   assert.throws(() => normalizeServerUrl("nonsense"), SettingsError);
-  assert.equal(hostPermissionFor("http://127.0.0.1:6578"), "http://127.0.0.1/*");
+  assert.equal(hostPermissionFor("http://127.0.0.1:5678"), "http://127.0.0.1/*");
 });
