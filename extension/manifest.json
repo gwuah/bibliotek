@@ -3,6 +3,7 @@
   "name": "Light for liotek",
   "short_name": "Light liotek",
   "version": "2.0.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA+8WnURuqQEW2UvQsKSzEClYN2hoKlZBMDXb8VhNCeQ27wkT3JGMKjhztzhQSrZ1Cv2Qr86JArR340MCQxI2ZWpi6ItBviuycYMVO4ZRXjutCCjEnd0KLG5ODG5RvqiyFRFxkc7zgyXO4n3ZIyCeLUXqK43hhMzxBNCHVVR8souZVSZhUr3PAq2Spdp290/4IaJBTrwQ6tyAh/Eu7fvwpqtNaLXEiHkuJJZIjoORtzN21UjhqSQGUs/1gOo0d3MgAc/7pCt5d2kwEi89qE95+abVHMDGEfsgw8+FeAhNIB7eYIhhBh0jKBE49hXKYbG74Anx1XvmgS2699hq2UrOGnQIDAQAB",
   "description": "Highlight and annotate web pages, and sync them to your liotek library.",
   "permissions": ["storage", "contextMenus"],
   "optional_host_permissions": ["http://*/*", "https://*/*"],

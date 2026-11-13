@@ -385,6 +385,7 @@ pub const PAGE_SIZE: u32 = 50;
 pub struct DocumentFilter {
     pub query: Option<String>,
     pub kind: Option<DocumentKind>,
+    pub has_file: Option<bool>,
     pub author: Option<String>,
     pub subject: Option<String>,
     pub tag: Option<String>,
@@ -401,6 +402,7 @@ impl DocumentFilter {
         vec![
             (":q".into(), given(&self.query)),
             (":kind".into(), self.kind.map(DocumentKind::as_str).into()),
+            (":has_file".into(), self.has_file.into()),
             (":author".into(), given(&self.author)),
             (":subject".into(), given(&self.subject)),
             (":tag".into(), given(&self.tag)),
@@ -442,6 +444,7 @@ const MATCHING_DOCUMENTS: &str = "
     matching AS (
         SELECT d.id FROM documents d
         WHERE (:kind IS NULL OR d.kind = :kind)
+          AND (:has_file IS NULL OR (d.object_key IS NOT NULL) = :has_file)
           AND (:q IS NULL
                OR instr(lower(d.title), lower(:q)) > 0
                OR instr(lower(coalesce(d.description, '')), lower(:q)) > 0

@@ -15,7 +15,7 @@ export default function BooksPage() {
 
   const fetchBooks = useCallback(async (query, pageNum) => {
     try {
-      const data = await listDocuments({ q: query, page: pageNum })
+      const data = await listDocuments({ q: query, page: pageNum, has_file: true })
       setBooks(data.documents)
       setTotalPages(Math.max(1, Math.ceil(data.total / data.page_size)))
     } catch (err) {
@@ -84,7 +84,7 @@ export default function BooksPage() {
             type="text"
             value={searchQuery}
             onChange={handleSearchChange}
-            placeholder="Search documents..."
+            placeholder="Search books..."
             className="search-input"
           />
         </div>

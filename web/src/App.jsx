@@ -37,7 +37,7 @@ export default function App() {
     const fetchCounts = async () => {
       try {
         const [documents, websites, reading, matches] = await Promise.all([
-          listDocuments(),
+          listDocuments({ has_file: true }),
           listDocuments({ kind: 'web' }),
           listReading(),
           listMatches()

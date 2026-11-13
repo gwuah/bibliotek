@@ -38,6 +38,7 @@ pub fn write_routes() -> Router<AppState> {
 struct ListParams {
     q: Option<String>,
     kind: Option<DocumentKind>,
+    has_file: Option<bool>,
     author: Option<String>,
     subject: Option<String>,
     tag: Option<String>,
@@ -51,6 +52,7 @@ async fn list(
     let filter = DocumentFilter {
         query: params.q,
         kind: params.kind,
+        has_file: params.has_file,
         author: params.author,
         subject: params.subject,
         tag: params.tag,

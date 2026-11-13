@@ -662,7 +662,9 @@ impl Importer<'_> {
                 self.report,
                 "research_config",
                 1,
-                format!("runtime configuration: set `research_database: {path}` in liotek's config file"),
+                format!(
+                    "runtime configuration: set `research: {{ database_path: {path} }}` in liotek's config file"
+                ),
             );
         }
 

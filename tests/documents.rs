@@ -154,6 +154,30 @@ async fn filters_by_kind_author_subject_and_tag() {
 }
 
 #[tokio::test]
+async fn filters_by_whether_a_document_has_a_file() {
+    let app = TestApp::start().await;
+    let uploaded = seed(&app, book("Our Sister Killjoy")).await;
+    seed(&app, book("A Research PDF without a file")).await;
+    seed(
+        &app,
+        NewDocument::new(DocumentKind::Web, "https://example.com/essay"),
+    )
+    .await;
+    execute(
+        &app,
+        "UPDATE documents SET object_key = 'local/killjoy.pdf' WHERE id = ?",
+        [uploaded],
+    )
+    .await;
+
+    let with_file = app.get("/api/documents?has_file=true").await.data();
+    let without_file = app.get("/api/documents?has_file=false").await.data();
+
+    assert_eq!(titles(&with_file), ["Our Sister Killjoy"]);
+    assert_eq!(without_file["total"], 2);
+}
+
+#[tokio::test]
 async fn summaries_keep_author_order_and_count_annotations() {
     let app = TestApp::start().await;
     let id = seed(

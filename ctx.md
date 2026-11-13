@@ -108,6 +108,11 @@ The development admin token is `dev-admin-token`. The preview config is
 `~/.liotek/config.preview.yaml` (mode 0600; it holds the bucket key, which can reach only
 `liotek-preview`).
 
+The extension's ID is pinned by the `key` in `extension/manifest.json`, so its origin is
+`chrome-extension://emeinmdallkcjcidlcliaiefahmimoel` on every machine; that is what
+`extension_origins` lists. The matching private key, needed only to package the
+extension, is `~/.liotek/extension-key.pem`.
+
 ## Isolation from Bibliotek
 
 While both run on one machine they must never meet. liotek refuses to start with a
