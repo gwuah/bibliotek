@@ -101,12 +101,13 @@ liotek schema no newer than the binary) before moving it into place.
 | Environment | Port | Data | Object store |
 | --- | --- | --- | --- |
 | development (`make dev`) | 6579 | `.dev/` in the checkout | filesystem, no credentials |
-| preview | 6578 | `~/.liotek/preview` | Tigris bucket `liotek-preview` |
-| production | 5678 at cutover | `~/.liotek` | Bibliotek's buckets, taken over last |
+| preview | 6578 | `~/.liotek/preview` | `bibliotek`, read-only key; uploads and backups fail |
+| production | 5678 at cutover | `~/.liotek/production` | `bibliotek`, Editor key, writes under `liotek/production/` |
 
-The development admin token is `dev-admin-token`. The preview config is
-`~/.liotek/config.preview.yaml` (mode 0600; it holds the bucket key, which can reach only
-`liotek-preview`).
+The development admin token is `dev-admin-token`. Preview and production configs are
+`~/.liotek/config.preview.yaml` and `~/.liotek/config.yaml` (mode 0600). Each holds its own
+admin token and its own Tigris key: `liotek-preview-bibliotek-ro` (ReadOnly on `bibliotek`)
+and `liotek-production` (Editor on `bibliotek`). Bibliotek's own key is never shared.
 
 The extension's ID is pinned by the `key` in `extension/manifest.json`, so its origin is
 `chrome-extension://emeinmdallkcjcidlcliaiefahmimoel` on every machine; that is what
