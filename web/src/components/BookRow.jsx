@@ -89,26 +89,26 @@ export default function BookRow({ book, entities, onUpdate, onEntitiesChange }) 
 
   if (!editing) {
     return (
-      <tr className="border-b border-gray-200">
-        <td className="px-2 font-medium" title={book.title}>
+      <tr className="book-row border-b border-gray-200">
+        <td className="book-title-cell px-2 font-medium" title={book.title}>
           <DocumentLink id={book.id} className="book-title-link">{trimTitle(book)}</DocumentLink>
         </td>
-        <td className="px-2">
+        <td className="book-authors px-2">
           {book.authors.map(name => (
             <span key={name} className="bg-amber-100 px-2 py-0.5 text-xs rounded mr-1">{name}</span>
           ))}
         </td>
-        <td className="px-2">
+        <td className="book-tags px-2">
           {book.tags.map(name => (
             <span key={name} className="border border-gray-400 px-2 py-0.5 text-xs rounded-full mr-1">{name}</span>
           ))}
         </td>
-        <td className="px-2">
+        <td className="book-subjects px-2">
           {book.subjects.map(name => (
             <span key={name} className="border border-gray-400 px-2 py-0.5 text-xs rounded-full mr-1">{name}</span>
           ))}
         </td>
-        <td className="px-2 whitespace-nowrap">
+        <td className="book-actions px-2 whitespace-nowrap">
           <button onClick={() => setEditing(true)} className="border border-gray-400 px-3 text-sm hover:bg-gray-100 mr-1">edit</button>
           <button
             onClick={handleView}
@@ -124,7 +124,7 @@ export default function BookRow({ book, entities, onUpdate, onEntitiesChange }) 
   }
 
   return (
-    <tr className="border-b border-gray-200 bg-gray-50">
+    <tr className="book-row editing border-b border-gray-200 bg-gray-50">
       <td className="px-2">
         <input
           value={form.title}
@@ -144,7 +144,7 @@ export default function BookRow({ book, entities, onUpdate, onEntitiesChange }) 
           />
         </td>
       ))}
-      <td className="px-2 whitespace-nowrap">
+      <td className="book-actions px-2 whitespace-nowrap">
         <button onClick={handleCancel} className="border border-gray-400 px-3 text-sm hover:bg-gray-100 mr-1">cancel</button>
         <button
           onClick={handleSave}
