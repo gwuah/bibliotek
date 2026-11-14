@@ -1,5 +1,4 @@
 use std::fmt;
-use std::net::TcpListener;
 
 use time::OffsetDateTime;
 
@@ -8,6 +7,7 @@ use crate::blob::{self, ObjectKey};
 use crate::build;
 use crate::config::{BackupSchedule, BlobStoreConfig, Config};
 use crate::db::ReadOnlyDb;
+use crate::health;
 
 #[derive(Debug, PartialEq, Eq)]
 enum Finding {
@@ -104,9 +104,10 @@ async fn database(config: &Config) -> Finding {
 }
 
 fn listen_address(config: &Config) -> Finding {
-    match TcpListener::bind(config.bind) {
-        Ok(_) => Finding::Ok(format!("{} is free", config.bind)),
-        Err(_) => Finding::Warning(format!("{} is in use (a running liotek?)", config.bind)),
+    if health::address_in_use(config.bind) {
+        Finding::Warning(format!("{} is in use (a running liotek?)", config.bind))
+    } else {
+        Finding::Ok(format!("{} is free", config.bind))
     }
 }
 

@@ -14,11 +14,31 @@ FAILED="$BINARY.failed"
 CONFIG="${LIOTEK_CONFIG:-$HOME/.$NAME/config.yaml}"
 LOG_DIR="$HOME/Library/Logs/$NAME"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
+SITE_HOST="${LIOTEK_HOSTNAME:-$NAME.test}"
+CADDY_SITES="${LIOTEK_CADDY_SITES:-$HOME/.config/caddy/sites}"
+CADDY_SITE="$CADDY_SITES/$SITE_HOST.caddy"
 
 fail() { echo "install: $*" >&2; exit 1; }
+warn() { echo "install: warning: $*" >&2; }
 
 [ -x "$NEW_BINARY" ] || fail "$NEW_BINARY is not built; run \`make release\` first"
 [ -f "$CONFIG" ] || fail "$CONFIG does not exist; copy config.example.yaml there and edit it"
+
+configured_bind() {
+  sed -nE 's/^bind:[[:space:]]*["'\'']?([^"'\''#[:space:]]+).*/\1/p' "$CONFIG" | head -n 1
+}
+
+upstream_for() {
+  local host="${1%:*}" port="${1##*:}"
+  case "$host" in
+    0.0.0.0 | "[::]") echo "127.0.0.1:$port" ;;
+    *) echo "$1" ;;
+  esac
+}
+
+BIND=$(configured_bind)
+[[ "$BIND" == *:[0-9]* ]] || fail "could not read \`bind: HOST:PORT\` from $CONFIG; nothing was changed"
+UPSTREAM=$(upstream_for "$BIND")
 
 write_plist() {
   cat > "$1" <<PLIST
@@ -94,6 +114,54 @@ restore_pre_upgrade_backup() {
   launchctl bootstrap "$DOMAIN" "$PLIST"
 }
 
+caddyfile() {
+  if [ -n "${LIOTEK_CADDYFILE:-}" ]; then
+    echo "$LIOTEK_CADDYFILE"
+  elif command -v brew >/dev/null; then
+    echo "$(brew --prefix)/etc/Caddyfile"
+  fi
+}
+
+write_caddy_site() {
+  mkdir -p "$CADDY_SITES"
+  cat > "$CADDY_SITE" <<SITE
+http://$SITE_HOST {
+	@elsewhere not remote_ip 127.0.0.1 ::1
+	abort @elsewhere
+	reverse_proxy $UPSTREAM
+}
+SITE
+}
+
+# Caddy only adds the hostname; liotek is already installed and healthy, so nothing
+# here may fail the install.
+install_caddy_site() {
+  write_caddy_site
+  echo "Wrote $CADDY_SITE (http://$SITE_HOST -> $UPSTREAM)"
+
+  if ! command -v caddy >/dev/null; then
+    warn "Caddy is not installed; http://$SITE_HOST works once it is (see ctx.md, Local hostname)"
+    return
+  fi
+  local main
+  main=$(caddyfile)
+  if [ -z "$main" ] || [ ! -f "$main" ]; then
+    warn "no main Caddyfile found${main:+ at $main}; set LIOTEK_CADDYFILE or create it (see ctx.md)"
+    return
+  fi
+  if ! grep -qF "$CADDY_SITES" "$main"; then
+    warn "$main does not import $CADDY_SITES/*.caddy, so Caddy will not serve $SITE_HOST"
+    return
+  fi
+  local output
+  if output=$(caddy reload --config "$main" --adapter caddyfile 2>&1); then
+    echo "Reloaded Caddy: http://$SITE_HOST"
+  else
+    warn "could not reload Caddy (is it running? \`brew services start caddy\`):"
+    printf '%s\n' "$output" >&2
+  fi
+}
+
 echo "Checking $NEW_BINARY against $CONFIG"
 "$NEW_BINARY" doctor --config "$CONFIG" || fail "doctor found a problem; nothing was changed"
 
@@ -122,6 +190,7 @@ if wait_until_healthy; then
   rm -f "$FAILED"
   echo "Installed: $("$BINARY" --version)"
   echo "Logs: $LOG_DIR/$NAME.log"
+  install_caddy_site
   exit 0
 fi
 

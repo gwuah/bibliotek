@@ -140,8 +140,47 @@ a schema it refuses), the agent is stopped, the database is moved to
 
 `LIOTEK_SKIP_BACKUP=1` skips the backup (for a store that cannot be written, like
 preview's). `LIOTEK_LABEL` installs under another launchd label, which keeps a test
-install apart from production. The extension has no release step: reload it in
-`chrome://extensions`.
+install apart from production; give such an install its own `LIOTEK_HOSTNAME` too. The
+extension has no release step: reload it in `chrome://extensions`.
+
+## Local hostname
+
+The library is served at `http://liotek.test` on this machine. dnsmasq answers every
+`*.test` name with the loopback address, and Caddy on port 80 routes each name to its
+service's port. `.test` is reserved and will never be a real domain; `.local` belongs to
+Bonjour.
+
+`scripts/install.sh` writes `~/.config/caddy/sites/liotek.test.caddy`, pointing at the
+config's `bind` port, and reloads Caddy. macOS lets an unprivileged Caddy take port 80 only
+on every interface, not on 127.0.0.1 alone, so each site aborts requests that do not come
+from loopback. A missing or stopped Caddy is a warning, never a
+failed install. `LIOTEK_HOSTNAME`, `LIOTEK_CADDY_SITES`, and `LIOTEK_CADDYFILE` override the
+name, the sites directory, and the main Caddyfile (default `$(brew --prefix)/etc/Caddyfile`).
+`scripts/uninstall.sh` removes the site.
+
+Caddy and dnsmasq are set up by hand, once:
+
+```bash
+brew install caddy dnsmasq
+
+cat > "$(brew --prefix)/etc/dnsmasq.d/test.conf" <<'CONF'
+address=/test/127.0.0.1
+address=/test/::1
+listen-address=127.0.0.1
+bind-interfaces
+CONF
+sudo mkdir -p /etc/resolver
+echo "nameserver 127.0.0.1" | sudo tee /etc/resolver/test
+sudo brew services start dnsmasq
+
+mkdir -p ~/.config/caddy/sites
+echo "import $HOME/.config/caddy/sites/*.caddy" > "$(brew --prefix)/etc/Caddyfile"
+brew services start caddy
+```
+
+Check with `ping liotek.test` or `dscacheutil -q host -a name liotek.test`; `dig` and
+`nslookup` skip `/etc/resolver` and report the name as missing. Another local service
+joins by dropping its own `<name>.test.caddy` into the sites directory.
 
 ## Switchover
 

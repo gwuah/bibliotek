@@ -4,8 +4,12 @@ import { parseExport, planImport } from "./lib/transfer.js";
 
 const HIGHLIGHT_MENU = "highlight";
 
+// Chrome keeps an extension's menu items across updates and reloads, and onInstalled runs
+// on each of them, so the item is removed before it is created again.
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({ id: HIGHLIGHT_MENU, title: "Highlight Text", contexts: ["selection"] });
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({ id: HIGHLIGHT_MENU, title: "Highlight Text", contexts: ["selection"] });
+  });
 });
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {

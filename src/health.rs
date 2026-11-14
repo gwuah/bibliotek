@@ -9,6 +9,7 @@ use crate::build;
 use crate::config::Config;
 
 const TIMEOUT: Duration = Duration::from_secs(3);
+const PROBE_TIMEOUT: Duration = Duration::from_millis(500);
 
 pub async fn check(config: &Config) -> anyhow::Result<String> {
     let address = reachable_address(config.bind);
@@ -25,6 +26,14 @@ pub async fn check(config: &Config) -> anyhow::Result<String> {
         );
     }
     Ok(format!("{address} is healthy at revision {running}"))
+}
+
+// Binding alone is not enough: std sets SO_REUSEADDR, which on macOS lets 127.0.0.1:P bind
+// while another process listens on 0.0.0.0:P (and the reverse), so a daemon still running
+// under an old `bind` would look absent. Connecting finds it.
+pub fn address_in_use(bind: SocketAddr) -> bool {
+    std::net::TcpListener::bind(bind).is_err()
+        || std::net::TcpStream::connect_timeout(&reachable_address(bind), PROBE_TIMEOUT).is_ok()
 }
 
 fn reachable_address(bind: SocketAddr) -> SocketAddr {
@@ -71,5 +80,27 @@ mod tests {
             reachable_address("192.168.1.9:6578".parse().unwrap()),
             "192.168.1.9:6578".parse().unwrap()
         );
+    }
+
+    #[test]
+    fn a_loopback_listener_makes_the_wildcard_address_on_its_port_in_use() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+
+        assert!(address_in_use(SocketAddr::new(
+            Ipv4Addr::UNSPECIFIED.into(),
+            port
+        )));
+    }
+
+    #[test]
+    fn an_address_nobody_listens_on_is_free() {
+        let port = std::net::TcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap()
+            .port();
+
+        assert!(!address_in_use(SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port)));
     }
 }

@@ -34,6 +34,7 @@ body {
   font-family: et-book, Palatino, "Palatino Linotype", "Palatino LT STD",
     "Book Antiqua", Georgia, serif;
   font-size: 20px;
+  background: #fff;
 }
 
 .bcontainer {
@@ -1343,4 +1344,176 @@ img {
 
 .duplicate-candidate input {
   margin-top: 5px;
+}
+
+.app-nav button {
+  white-space: nowrap;
+}
+
+.light-path-item,
+.light-url-item span:first-child,
+.research-list-title,
+.research-detail-title,
+.research-annotation-text,
+.research-note,
+.research-comment,
+.duplicate-candidate {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 767px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
+  .app-nav {
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-bottom: 16px;
+  }
+
+  .app-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .app-nav button {
+    padding: 10px 14px;
+    flex-shrink: 0;
+  }
+
+  .pagination {
+    justify-content: space-between;
+  }
+
+  .pagination-btn {
+    padding: 8px 14px;
+  }
+
+  .file-drop-area {
+    padding: 20px 18px;
+  }
+
+  .upload-item-name {
+    max-width: none;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .book-table,
+  .book-table tbody,
+  .book-table tr,
+  .book-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .book-table colgroup {
+    display: none;
+  }
+
+  .book-table tr {
+    padding: 10px 6px;
+  }
+
+  .book-table td:not(:empty) + td:not(:empty) {
+    margin-top: 6px;
+  }
+
+  .book-table td span {
+    display: inline-block;
+    margin-bottom: 4px;
+  }
+
+  .book-table td button {
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+
+  .light-container {
+    max-width: none;
+  }
+
+  .light-url-item {
+    gap: 12px;
+  }
+
+  .light-url-item-date {
+    flex-shrink: 0;
+  }
+
+  .light-highlights-for-url {
+    padding-left: 16px;
+  }
+
+  .light-path-item {
+    padding-left: 16px;
+  }
+
+  .research-container {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .research-sidebar {
+    width: 100%;
+  }
+
+  .research-list-item {
+    gap: 12px;
+  }
+
+  .research-list-date {
+    flex-shrink: 0;
+  }
+
+  .research-detail-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+
+  .research-detail-header-sep {
+    display: none;
+  }
+
+  .research-detail-layout {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .research-toc-column,
+  .research-toc-column.collapsed,
+  .research-notes-column {
+    flex: none;
+    position: static;
+  }
+
+  .research-chapter-list {
+    max-height: 40vh;
+    overflow-y: auto;
+    margin-bottom: 0;
+  }
+
+  .research-annotations-column,
+  .research-notes-container,
+  .research-chapter-sidebar,
+  .research-chapter-editor {
+    padding: 12px;
+  }
+
+  .research-theme-toggle-small {
+    padding: 6px 10px;
+  }
+
+  .research-chapter-actions {
+    flex-wrap: wrap;
+  }
+
+  .duplicate-match {
+    padding: 10px;
+  }
 }

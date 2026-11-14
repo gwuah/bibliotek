@@ -7,7 +7,7 @@ export default function BookList({ books, entities, onBookUpdate, onEntitiesChan
   }
 
   return (
-    <table className="w-full table-fixed text-left text-sm">
+    <table className="book-table w-full table-fixed text-left text-sm">
       <colgroup>
         <col style={{ width: '33%' }} />
         <col style={{ width: '17%' }} />

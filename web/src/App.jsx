@@ -66,7 +66,7 @@ export default function App() {
   )
 
   return (
-    <div className="p-10">
+    <div className="p-4 md:p-10">
       <nav className="app-nav">
         {tab('library', 'Library', counts.documents)}
         {tab('highlights', 'Highlights', counts.highlights)}

@@ -19,6 +19,7 @@ use crate::db::{Db, ReadOnlyDb};
 use crate::domain::uploads::MIN_PROVIDER_PART_SIZE;
 use crate::error::{Error, Result};
 use crate::export::{self, LibraryCounts};
+use crate::health;
 
 const PREFIX: &str = "backups/";
 
@@ -483,16 +484,16 @@ fn already_exists(path: &Path) -> Error {
 }
 
 fn ensure_nothing_listens(config: &Config) -> Result<()> {
-    match std::net::TcpListener::bind(config.bind) {
-        Ok(_) => Ok(()),
-        Err(_) => Err(Error::conflict(
-            "daemon_running",
-            format!(
-                "something is listening on {}; stop liotek before restoring",
-                config.bind
-            ),
-        )),
+    if !health::address_in_use(config.bind) {
+        return Ok(());
     }
+    Err(Error::conflict(
+        "daemon_running",
+        format!(
+            "something is listening on {}; stop liotek before restoring",
+            config.bind
+        ),
+    ))
 }
 
 fn copy_local(source: &Path, staged: &Path) -> Result<()> {

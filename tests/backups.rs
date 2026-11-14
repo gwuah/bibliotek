@@ -2,6 +2,7 @@ mod common;
 #[path = "common/flaky_store.rs"]
 mod flaky_store;
 
+use std::net::{Ipv4Addr, SocketAddr};
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -541,6 +542,28 @@ async fn restore_refuses_while_something_listens_on_the_configured_address() {
     let fresh = tempfile::tempdir().unwrap();
     let mut config = config_in(fresh.path());
     config.bind = listener.local_addr().unwrap();
+    let refused = backup::restore(&config, app.state.blobs.as_ref(), &RestoreSource::File(export)).await;
+
+    assert!(matches!(
+        refused,
+        Err(Error::Conflict {
+            code: "daemon_running",
+            ..
+        })
+    ));
+    assert!(!config.database.path.exists());
+}
+
+#[tokio::test]
+async fn restore_refuses_while_the_daemon_listens_on_another_address_for_the_same_port() {
+    let app = TestApp::start().await;
+    let elsewhere = tempfile::tempdir().unwrap();
+    let export = export_of(&app, &elsewhere).await;
+    let listener = std::net::TcpListener::bind("0.0.0.0:0").unwrap();
+
+    let fresh = tempfile::tempdir().unwrap();
+    let mut config = config_in(fresh.path());
+    config.bind = SocketAddr::new(Ipv4Addr::LOCALHOST.into(), listener.local_addr().unwrap().port());
     let refused = backup::restore(&config, app.state.blobs.as_ref(), &RestoreSource::File(export)).await;
 
     assert!(matches!(
