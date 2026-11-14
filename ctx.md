@@ -50,6 +50,7 @@ src/
   import/          one-way imports from Light, Research, and Bibliotek
   http/            the list / read / write API
   export.rs        the portable export
+  reader.rs        the iconoclast books served at /reader/, and their catalog
   backup.rs        backups in the object store, their schedule, and restore
   doctor.rs        the read-only self-check
 web/               the React frontend (a replica of Bibliotek's), embedded into the binary

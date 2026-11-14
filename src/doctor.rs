@@ -8,6 +8,7 @@ use crate::build;
 use crate::config::{BackupSchedule, BlobStoreConfig, Config};
 use crate::db::ReadOnlyDb;
 use crate::health;
+use crate::reader;
 
 #[derive(Debug, PartialEq, Eq)]
 enum Finding {
@@ -60,6 +61,7 @@ pub async fn examine(config: &Config, check_objects: bool) -> Report {
         ("object store", object_store(config)),
         ("backups", backup_schedule(config)),
         ("research source", research_source(config).await),
+        ("reader books", reader_books(config).await),
     ];
     if check_objects {
         checks.push(("objects", object_references(config).await));
@@ -137,6 +139,16 @@ async fn research_source(config: &Config) -> Finding {
     match ReadOnlyDb::open(path).await {
         Ok(_) => Finding::Ok(format!("{} is readable", path.display())),
         Err(error) => Finding::Problem(format!("{}: {error}", path.display())),
+    }
+}
+
+async fn reader_books(config: &Config) -> Finding {
+    let Some(path) = &config.reader_books_dir else {
+        return Finding::Ok("not configured".to_string());
+    };
+    match reader::catalog(path).await {
+        Ok(books) => Finding::Ok(format!("{} built books in {}", books.len(), path.display())),
+        Err(error) => Finding::Problem(format!("{error:#}")),
     }
 }
 

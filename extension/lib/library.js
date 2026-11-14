@@ -1,3 +1,5 @@
+import { withoutFragment } from "./page.js";
+
 export function addHighlight(library, highlight) {
   const page = library[highlight.url] || [];
   return { ...library, [highlight.url]: [...page, highlight] };
@@ -96,6 +98,11 @@ export function hostnameOf(url) {
   } catch {
     return null;
   }
+}
+
+export function highlightsForPage(library, pageUrl, declaredUrl) {
+  if (!declaredUrl) return highlightsForSite(library, pageUrl);
+  return library[withoutFragment(declaredUrl)] ?? [];
 }
 
 // Matched by hostname because URLs drift between visits (fragments, query strings,

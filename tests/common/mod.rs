@@ -58,17 +58,27 @@ impl TestResponse {
 
 impl TestApp {
     pub async fn start() -> TestApp {
+        TestApp::start_configured(|_, _| {}).await
+    }
+
+    pub async fn start_in(dir: TempDir, blobs: Arc<dyn BlobStore>) -> TestApp {
+        let config = config_in(dir.path());
+        TestApp::start_with(dir, blobs, config).await
+    }
+
+    pub async fn start_configured(configure: impl FnOnce(&mut Config, &Path)) -> TestApp {
         let dir = tempfile::tempdir().expect("create a temporary directory");
         let blobs = Arc::new(
             FilesystemStore::open(&dir.path().join("blobs"))
                 .await
                 .expect("open blob store"),
         );
-        TestApp::start_in(dir, blobs).await
+        let mut config = config_in(dir.path());
+        configure(&mut config, dir.path());
+        TestApp::start_with(dir, blobs, config).await
     }
 
-    pub async fn start_in(dir: TempDir, blobs: Arc<dyn BlobStore>) -> TestApp {
-        let config = config_in(dir.path());
+    async fn start_with(dir: TempDir, blobs: Arc<dyn BlobStore>, config: Config) -> TestApp {
         let db = Db::open(&config.database).await.expect("open database");
         db.migrate().await.expect("migrate");
 
@@ -129,6 +139,7 @@ pub fn config_in(dir: &Path) -> Config {
             root: dir.join("blobs"),
         },
         research_database: None,
+        reader_books_dir: None,
         backups: None,
     }
 }

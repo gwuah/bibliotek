@@ -5,6 +5,7 @@ import {
   addHighlight,
   countHighlights,
   groupBySite,
+  highlightsForPage,
   highlightsForSite,
   mergeLibraries,
   noteOf,
@@ -83,6 +84,30 @@ test("a page shows every highlight stored for its site, whatever the path", () =
     "not a url": [highlight(4, "not a url")],
   };
   const ids = highlightsForSite(library, "https://a.example/one#section").map((h) => h.groupID);
+  assert.deepEqual(ids.sort(), [1, 2]);
+});
+
+test("a page that declares light:url gets exactly that address's highlights", () => {
+  const quine = "http://liotek.test/reader/quine-two-dogmas/book/book.html";
+  const croce = "http://liotek.test/reader/croce-logic/book/book.html";
+  const library = {
+    [quine]: [highlight(1, quine), highlight(2, quine)],
+    [croce]: [highlight(3, croce)],
+  };
+  const opened = (pageUrl) => highlightsForPage(library, pageUrl, quine).map((h) => h.groupID);
+
+  assert.deepEqual(opened("http://127.0.0.1:5678/reader/quine-two-dogmas/book/book.html#page-42"), [1, 2]);
+  assert.deepEqual(opened("file:///Users/me/iconoclast/books/quine-two-dogmas/book/book.html"), [1, 2]);
+  assert.deepEqual(highlightsForPage(library, croce, `${croce}#page-9`).map((h) => h.groupID), [3]);
+  assert.deepEqual(highlightsForPage(library, croce, "http://liotek.test/reader/unread/book/book.html"), []);
+});
+
+test("a page without light:url still gets every highlight on its host", () => {
+  const library = {
+    "https://a.example/one": [highlight(1, "https://a.example/one")],
+    "https://a.example/two": [highlight(2, "https://a.example/two")],
+  };
+  const ids = highlightsForPage(library, "https://a.example/one", null).map((h) => h.groupID);
   assert.deepEqual(ids.sort(), [1, 2]);
 });
 

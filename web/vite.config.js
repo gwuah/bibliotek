@@ -13,6 +13,7 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": "http://127.0.0.1:6579",
+      "/reader/": "http://127.0.0.1:6579",
     },
   },
   test: {

@@ -1686,3 +1686,50 @@ img {
     position: static;
   }
 }
+
+.reader-shelf {
+  border-top: 1px solid #e5e5e5;
+  padding-top: 12px;
+}
+
+.reader-shelf-author {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.reader-book {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 12px;
+  padding: 4px 0;
+  font-size: 18px;
+}
+
+.reader-book-title {
+  color: #000;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.reader-book-title:hover {
+  text-decoration: underline;
+}
+
+.reader-book-edition,
+.reader-book-highlights {
+  font-size: 14px;
+  color: #777;
+}
+
+@media (max-width: 767px) {
+  .reader-book {
+    font-size: 16px;
+  }
+
+  .reader-book-edition,
+  .reader-book-highlights {
+    font-size: 13px;
+  }
+}

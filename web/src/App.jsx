@@ -3,11 +3,12 @@ import HighlightsPage from './HighlightsPage.jsx'
 import ResearchPage from './ResearchPage.jsx'
 import DuplicatesPage from './DuplicatesPage.jsx'
 import BooksPage from './components/BooksPage.jsx'
-import { listDocuments, listMatches } from './api.js'
+import ReaderPage from './ReaderPage.jsx'
+import { ApiError, listDocuments, listMatches, listReaderBooks } from './api.js'
 import { listReading } from './reading.js'
 import { NAVIGATED, navigate } from './navigation.js'
 
-const VALID_PAGES = ['library', 'highlights', 'reading', 'duplicates']
+const VALID_PAGES = ['library', 'read', 'highlights', 'reading', 'duplicates']
 
 function parseRoute() {
   const segments = window.location.pathname.split('/').filter(Boolean)
@@ -24,6 +25,7 @@ function parseRoute() {
 export default function App() {
   const [route, setRoute] = useState(parseRoute)
   const [counts, setCounts] = useState({ documents: 0, highlights: 0, reading: 0, duplicates: 0 })
+  const [readerBooks, setReaderBooks] = useState(undefined)
 
   useEffect(() => {
     const handlePopState = () => {
@@ -56,6 +58,15 @@ export default function App() {
     fetchCounts()
   }, [])
 
+  useEffect(() => {
+    listReaderBooks()
+      .then(setReaderBooks)
+      .catch((err) => {
+        setReaderBooks(null)
+        if (!(err instanceof ApiError && err.status === 404)) console.error('Failed to fetch reader books:', err)
+      })
+  }, [])
+
   const tab = (page, label, count) => (
     <button
       className={route.page === page ? 'active' : ''}
@@ -69,12 +80,14 @@ export default function App() {
     <div className="p-4 md:p-10">
       <nav className="app-nav">
         {tab('library', 'Library', counts.documents)}
+        {readerBooks && tab('read', 'Reader', readerBooks.length)}
         {tab('highlights', 'Highlights', counts.highlights)}
         {tab('reading', 'Reading', counts.reading)}
         {tab('duplicates', 'Duplicates', counts.duplicates)}
       </nav>
 
       {route.page === 'library' && <BooksPage />}
+      {route.page === 'read' && <ReaderPage books={readerBooks} />}
       {route.page === 'highlights' && <HighlightsPage />}
       {route.page === 'reading' && <ResearchPage documentId={route.documentId} />}
       {route.page === 'duplicates' && <DuplicatesPage />}

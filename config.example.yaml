@@ -34,3 +34,8 @@ blob_store:
 # Uncomment to enable `POST /api/imports/research`.
 # research:
 #   database_path: /Users/you/Library/Application Support/Research/research.db
+
+# Uncomment to serve an iconoclast books folder at /reader/ and list it in the Reader tab.
+# Only reader/ and each book's book/ folder are served; source PDFs and work files are not.
+# reader:
+#   books_dir: ../iconoclast/books

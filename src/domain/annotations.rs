@@ -121,6 +121,26 @@ pub async fn notes_of(conn: &Connection, document_id: i64) -> Result<Vec<Note>> 
     Ok(notes)
 }
 
+pub async fn highlight_counts_by_url_ending(
+    conn: &Connection,
+    endings: &[String],
+) -> Result<HashMap<String, i64>> {
+    let mut rows = conn
+        .query(
+            "SELECT e.value,
+                    (SELECT count(*) FROM highlights h JOIN documents d ON d.id = h.document_id
+                     WHERE substr(d.canonical_url, -length(e.value)) = e.value)
+             FROM json_each(?) e",
+            [serde_json::Value::from(endings).to_string()],
+        )
+        .await?;
+    let mut counts = HashMap::new();
+    while let Some(row) = rows.next().await? {
+        counts.insert(row.get(0)?, row.get(1)?);
+    }
+    Ok(counts)
+}
+
 pub async fn counts_of(conn: &Connection, document_ids: &[i64]) -> Result<HashMap<i64, AnnotationCounts>> {
     let mut rows = conn
         .query(

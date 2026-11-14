@@ -1,5 +1,6 @@
 import * as commands from "../lib/commands.js";
-import { highlightsForSite } from "../lib/library.js";
+import { highlightsForPage } from "../lib/library.js";
+import { highlightUrl } from "../lib/page.js";
 import { loadHighlights, onHighlightsChanged } from "../lib/storage.js";
 import {
   captureSelection,
@@ -14,6 +15,18 @@ import { createNotes } from "./notes.js";
 
 const PAINT_ATTEMPTS = 7;
 const PAINT_INTERVAL_MS = 800;
+const REPAINT_EVENT = "light:repaint";
+
+let library = {};
+let repaintQueued = false;
+
+function declaredUrl() {
+  return document.querySelector('meta[name="light:url"]')?.content?.trim() || null;
+}
+
+function pageHighlights(from) {
+  return highlightsForPage(from, window.location.href, declaredUrl());
+}
 
 const notes = createNotes({
   saveNote: (groupId, text) => commands.setNote(groupId, text).catch(reportError),
@@ -46,7 +59,7 @@ async function highlightSelection() {
     repr: captured.repr,
     chunks: captured.chunks,
     anchor: captured.anchor,
-    url: window.location.href,
+    url: highlightUrl(window.location.href, declaredUrl()),
     date: new Date().toISOString(),
   };
   try {
@@ -76,24 +89,35 @@ async function deleteHighlight(groupId) {
   }
 }
 
-function paintSite(library) {
-  for (const highlight of highlightsForSite(library, window.location.href)) {
+function paintSite() {
+  for (const highlight of pageHighlights(library)) {
     paintHighlight(highlight);
   }
   notes.refreshMarkers();
 }
 
+function repaintSoon() {
+  if (repaintQueued) return;
+  repaintQueued = true;
+  requestAnimationFrame(() => {
+    repaintQueued = false;
+    paintSite();
+    notes.relayout();
+  });
+}
+
 async function restoreHighlights() {
-  const library = await loadHighlights();
+  library = await loadHighlights();
   notes.setLibrary(library);
   for (let attempt = 0; attempt < PAINT_ATTEMPTS; attempt++) {
-    paintSite(library);
+    paintSite();
     await new Promise((resolve) => setTimeout(resolve, PAINT_INTERVAL_MS));
   }
 }
 
-onHighlightsChanged((library) => {
-  const stored = new Set(highlightsForSite(library, window.location.href).map((h) => String(h.groupID)));
+onHighlightsChanged((changed) => {
+  library = changed;
+  const stored = new Set(pageHighlights(library).map((h) => String(h.groupID)));
   for (const groupId of paintedGroupIds()) {
     if (!stored.has(groupId)) unpaintHighlight(groupId);
   }
@@ -115,6 +139,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       break;
   }
 });
+
+document.addEventListener(REPAINT_EVENT, repaintSoon);
 
 document.addEventListener("keydown", (event) => {
   if (event.ctrlKey && event.key === "a") highlightSelection();

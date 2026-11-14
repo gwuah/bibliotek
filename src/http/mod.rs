@@ -4,6 +4,7 @@ pub mod documents;
 pub mod envelope;
 mod files;
 pub mod imports;
+pub mod reader;
 pub mod uploads;
 
 use std::sync::Arc;
@@ -32,7 +33,8 @@ pub fn router(state: AppState) -> Router {
     let reads = Router::new()
         .route("/health", get(health))
         .merge(documents::read_routes())
-        .merge(uploads::read_routes());
+        .merge(uploads::read_routes())
+        .merge(reader::read_routes());
 
     let writes = Router::new()
         .merge(documents::write_routes())
@@ -48,6 +50,7 @@ pub fn router(state: AppState) -> Router {
 
     Router::new()
         .nest("/api", api)
+        .merge(reader::file_routes())
         .fallback(assets::serve)
         .with_state(state)
 }

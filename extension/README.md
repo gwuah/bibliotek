@@ -71,6 +71,71 @@ or profile where that old copy lived.
 **Export to file** in Settings writes the same format, for backups or moving to another
 browser.
 
+## Moving reader highlights over
+
+Highlights made with the iconoclast reader's own highlighter live in that browser's storage.
+Move them into Light once:
+
+1. Open any book from the books folder as `file://` in Chrome and run this in the console.
+   Every `file://` page shares one storage, so one page sees every book. If you also
+   highlighted through `pipeline serve`, run it there too: that address has its own storage.
+
+   ```js
+   const stored = {};
+   for (let i = 0; i < localStorage.length; i++) {
+     const key = localStorage.key(i);
+     if (key.startsWith("notes:v2:") || key.startsWith("highlights:")) stored[key] = JSON.parse(localStorage.getItem(key));
+   }
+   const link = document.createElement("a");
+   link.href = URL.createObjectURL(new Blob([JSON.stringify(stored, null, 2)], { type: "application/json" }));
+   link.download = "reader-highlights.json";
+   link.click();
+   ```
+
+2. Settings › **Export to file** here.
+3. Convert, with `--base` equal to `LIGHT_BASE` in the reader's `boot.js`:
+
+   ```bash
+   node extension/scripts/import-reader-highlights.js \
+     --reader reader-highlights.json \
+     --light light-for-liotek-<id>-<date>.json \
+     --books ../iconoclast/books \
+     --base http://liotek.test \
+     --output light-with-reader.json
+   ```
+
+   It prints how many highlights it placed per book and lists any it had to leave out.
+   Running it again on its own output adds nothing.
+4. Settings › **Import from file** › `light-with-reader.json`, then **Sync**.
+
+## Page protocol
+
+Any page can talk to Light through two small, public hooks. Nothing in the extension is
+specific to the pages that use them.
+
+- **`light:url`** declares the address a page's highlights are saved under, whatever
+  address the page was opened at:
+
+  ```html
+  <meta name="light:url" content="http://liotek.test/reader/croce-logic/book/book.html">
+  ```
+
+  A page that declares one shows exactly the highlights saved under it. A page without one
+  is saved under its own address, and shows every highlight from its host, since ordinary
+  URLs drift between visits.
+
+- **`light:repaint`** asks Light to paint the page's highlights again, after the page has
+  rewritten its own text (and with it the highlight marks):
+
+  ```js
+  document.dispatchEvent(new Event("light:repaint"));
+  ```
+
+  Several within one frame cause one repaint. The event carries no data.
+
+A highlight's address never keeps a place in the page (`#section-2`), so one page stays one
+liotek document. A fragment that is a route (`#/inbox`, `#!/thread`) is kept.
+
 ## Layout
 
 ```text
@@ -79,6 +144,7 @@ background.js         context menu; the one writer of the library (a queue of co
 lib/
   storage.js          the only code touching chrome.storage; every key is `liotek:…`
   library.js          the highlights object and every change to it, as pure functions
+  page.js             the address a highlight is saved under
   commands.js         asks the background to change the library
   sync.js             the sync request, and the server's answer or error
   transfer.js         the export file: building, validating, and what importing does
@@ -93,6 +159,8 @@ content/
 popup/                the list of highlights, toggle, sync
 options/              settings, installation identity, export and import
 fonts/                Barlow, bundled so nothing loads from the network
+scripts/
+  import-reader-highlights.js   the one-off move of iconoclast reader highlights
 tests/                node --test, for the pure modules and the background worker
 ```
 

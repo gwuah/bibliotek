@@ -121,6 +121,8 @@ export const updateDocument = (id, patch) => write("PATCH", `/documents/${id}`, 
 export const documentFileUrl = (id) => `${BASE}/documents/${id}/file`;
 export const getFacets = () => read("/facets");
 
+export const listReaderBooks = () => read("/reader/books");
+
 export const listMatches = () => read("/document-matches");
 export const mergeMatch = (id, survivorId) =>
   write("POST", `/document-matches/${id}/merge`, { body: { survivor_id: survivorId } });

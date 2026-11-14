@@ -87,6 +87,7 @@ pub struct Config {
     pub database: DatabaseConfig,
     pub blob_store: BlobStoreConfig,
     pub research_database: Option<PathBuf>,
+    pub reader_books_dir: Option<PathBuf>,
     pub backups: Option<BackupSchedule>,
 }
 
@@ -222,6 +223,7 @@ struct RawConfig {
     database: RawDatabase,
     blob_store: RawBlobStore,
     research: Option<RawResearch>,
+    reader: Option<RawReader>,
     backups: Option<RawBackups>,
 }
 
@@ -262,6 +264,12 @@ enum RawBlobStore {
 #[serde(deny_unknown_fields)]
 struct RawResearch {
     database_path: PathBuf,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawReader {
+    books_dir: PathBuf,
 }
 
 #[derive(Deserialize)]
@@ -348,6 +356,7 @@ impl RawConfig {
             research_database: self
                 .research
                 .map(|research| resolve_path(base, &research.database_path)),
+            reader_books_dir: self.reader.map(|reader| resolve_path(base, &reader.books_dir)),
             backups: self.backups.map(RawBackups::resolve).transpose()?,
             data_dir,
         })
@@ -423,13 +432,20 @@ mod tests {
 
     #[test]
     fn resolves_every_path_against_the_config_file() {
-        let config = load(&development("research: { database_path: ../research/app.db }")).unwrap();
+        let config = load(&development(
+            "research: { database_path: ../research/app.db }\nreader: { books_dir: ../iconoclast/books }",
+        ))
+        .unwrap();
 
         assert_eq!(config.data_dir, Path::new("/srv/liotek/data"));
         assert_eq!(config.database.path, Path::new("/srv/liotek/data/liotek.db"));
         assert_eq!(
             config.research_database.unwrap(),
             Path::new("/srv/research/app.db")
+        );
+        assert_eq!(
+            config.reader_books_dir.unwrap(),
+            Path::new("/srv/iconoclast/books")
         );
         match config.blob_store {
             BlobStoreConfig::Filesystem { root } => assert_eq!(root, Path::new("/srv/liotek/data/blobs")),
