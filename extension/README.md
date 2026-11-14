@@ -29,85 +29,6 @@ empty snapshot; the popup asks before sending it again with `confirm_empty=true`
 A sync only reads local storage. Whatever the server answers, the highlights here stay as
 they were.
 
-## Moving over from the old Light
-
-A new extension starts with empty storage. Carry each old installation over with its
-installation ID, so liotek matches the highlights it already has (for example from the
-Bibliotek import) instead of storing them twice.
-
-1. In the browser with the old Light, right-click its toolbar icon › **Inspect popup**,
-   open the **Console**, and run:
-
-   ```js
-   chrome.storage.local.get({ highlights: {}, sourceId: null }, ({ highlights, sourceId }) => {
-     if (!sourceId) return console.error("This installation never generated a sourceId.");
-     const file = {
-       format: "liotek-light-export",
-       version: 1,
-       installation: sourceId,
-       exported_at: new Date().toISOString(),
-       highlights,
-     };
-     const link = document.createElement("a");
-     link.href = URL.createObjectURL(new Blob([JSON.stringify(file, null, 2)], { type: "application/json" }));
-     link.download = `light-${sourceId}.json`;
-     link.click();
-   });
-   ```
-
-   It only reads the old extension's storage (`highlights` and `sourceId`) and downloads
-   `light-<id>.json`.
-2. Install Light for liotek in the same browser, open Settings › **Import from file**, and
-   choose that file. The extension adopts the old installation ID.
-3. Sync. Every highlight should come back `unchanged` or `updated`, not `new`.
-4. Once that sync looks right, remove the old extension.
-
-One copy of Light for liotek holds one installation. Importing into a copy that already
-has highlights works only for a file from the same installation (the two are merged);
-a file from a different installation is refused, because one ID cannot speak for two sets
-of highlights. With several old copies, import each into the new extension in the browser
-or profile where that old copy lived.
-
-**Export to file** in Settings writes the same format, for backups or moving to another
-browser.
-
-## Moving reader highlights over
-
-Highlights made with the iconoclast reader's own highlighter live in that browser's storage.
-Move them into Light once:
-
-1. Open any book from the books folder as `file://` in Chrome and run this in the console.
-   Every `file://` page shares one storage, so one page sees every book. If you also
-   highlighted through `pipeline serve`, run it there too: that address has its own storage.
-
-   ```js
-   const stored = {};
-   for (let i = 0; i < localStorage.length; i++) {
-     const key = localStorage.key(i);
-     if (key.startsWith("notes:v2:") || key.startsWith("highlights:")) stored[key] = JSON.parse(localStorage.getItem(key));
-   }
-   const link = document.createElement("a");
-   link.href = URL.createObjectURL(new Blob([JSON.stringify(stored, null, 2)], { type: "application/json" }));
-   link.download = "reader-highlights.json";
-   link.click();
-   ```
-
-2. Settings › **Export to file** here.
-3. Convert, with `--base` equal to `LIGHT_BASE` in the reader's `boot.js`:
-
-   ```bash
-   node extension/scripts/import-reader-highlights.js \
-     --reader reader-highlights.json \
-     --light light-for-liotek-<id>-<date>.json \
-     --books ../iconoclast/books \
-     --base http://liotek.test \
-     --output light-with-reader.json
-   ```
-
-   It prints how many highlights it placed per book and lists any it had to leave out.
-   Running it again on its own output adds nothing.
-4. Settings › **Import from file** › `light-with-reader.json`, then **Sync**.
-
 ## Page protocol
 
 Any page can talk to Light through two small, public hooks. Nothing in the extension is
@@ -117,7 +38,10 @@ specific to the pages that use them.
   address the page was opened at:
 
   ```html
-  <meta name="light:url" content="http://liotek.test/reader/croce-logic/book/book.html">
+  <meta
+    name="light:url"
+    content="http://liotek.test/reader/croce-logic/book/book.html"
+  />
   ```
 
   A page that declares one shows exactly the highlights saved under it. A page without one
