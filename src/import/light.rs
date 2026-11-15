@@ -68,7 +68,7 @@ pub fn snapshot(installation: &str, payload: LightPayload) -> Result<Snapshot> {
         .into_iter()
         .map(|(url, highlights)| page(url, highlights))
         .collect::<Result<Vec<_>>>()?;
-    Ok(Snapshot::new(source::light(installation), documents)?.with_movable_highlights())
+    Snapshot::new(source::light(installation), documents)
 }
 
 pub fn document(url: &str) -> Result<SourceDocument> {

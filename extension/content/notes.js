@@ -221,7 +221,9 @@ export function createNotes({ saveNote, deleteHighlight }) {
       const width = Math.min(MAX_WIDTH, docWidth - left - EDGE);
       note.style.color = getComputedStyle(block).color;
 
-      if (width >= MIN_WIDTH) {
+      if (scrolledOutOfView(spans[0], first, last)) {
+        note.style.display = "none";
+      } else if (width >= MIN_WIDTH) {
         note.classList.remove("floating");
         note.style.background = "";
         note.style.left = `${left}px`;
@@ -246,6 +248,25 @@ export function createNotes({ saveNote, deleteHighlight }) {
       note.style.top = `${y}px`;
       floor = y + note.offsetHeight + STACK_GAP;
     }
+  }
+
+  // Notes hang off the document, so a highlight inside a scrolling element (a chat app's
+  // message list) moves without them; outside that element's view its note is hidden
+  // rather than left floating over the rest of the page.
+  function scrolledOutOfView(span, first, last) {
+    const scroller = scrollingAncestorOf(span);
+    if (!scroller) return false;
+    const view = scroller.getBoundingClientRect();
+    return last.bottom < view.top || first.top > view.bottom;
+  }
+
+  function scrollingAncestorOf(node) {
+    for (let el = node.parentElement; el && el !== document.body; el = el.parentElement) {
+      if (el.scrollHeight > el.clientHeight && /auto|scroll|overlay/.test(getComputedStyle(el).overflowY)) {
+        return el;
+      }
+    }
+    return null;
   }
 
   function queueLayout() {
@@ -373,6 +394,10 @@ export function createNotes({ saveNote, deleteHighlight }) {
   );
 
   window.addEventListener("resize", queueLayout);
+  document.addEventListener("scroll", (e) => e.target !== document && queueLayout(), {
+    capture: true,
+    passive: true,
+  });
   if (window.ResizeObserver) new ResizeObserver(queueLayout).observe(document.documentElement);
 
   return {

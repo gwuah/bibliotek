@@ -15,7 +15,6 @@ use crate::error::{Error, Result};
 pub struct Snapshot {
     source: String,
     documents: Vec<SourceDocument>,
-    highlights_can_move: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -141,19 +140,7 @@ impl Snapshot {
                 )?;
             }
         }
-        Ok(Snapshot {
-            source,
-            documents,
-            highlights_can_move: false,
-        })
-    }
-
-    // Only for a source whose highlight IDs are unique across all its documents.
-    pub fn with_movable_highlights(self) -> Snapshot {
-        Snapshot {
-            highlights_can_move: true,
-            ..self
-        }
+        Ok(Snapshot { source, documents })
     }
 
     pub fn source(&self) -> &str {
@@ -201,18 +188,11 @@ pub async fn apply(conn: &Connection, snapshot: &Snapshot, empty: EmptySnapshot)
         ..ImportStats::default()
     };
     let mut present = HashSet::new();
-    let mut placed = Vec::with_capacity(snapshot.documents.len());
     for document in &snapshot.documents {
         let identity = upsert_identity(conn, &snapshot.source, document, &mut stats.documents).await?;
         present.insert(identity.id);
-        placed.push((document, identity));
-    }
-    if snapshot.highlights_can_move {
-        move_highlights(conn, &snapshot.source, &placed).await?;
-    }
-    for (document, identity) in &placed {
-        reconcile_highlights(conn, identity, &document.highlights, &mut stats).await?;
-        reconcile_notes(conn, identity, &document.notes, &mut stats.notes).await?;
+        reconcile_highlights(conn, &identity, &document.highlights, &mut stats).await?;
+        reconcile_notes(conn, &identity, &document.notes, &mut stats.notes).await?;
     }
     remove_absent_identities(conn, &snapshot.source, &present, &mut stats).await?;
 
@@ -434,66 +414,6 @@ async fn reconcile_highlights(
         delete_highlight(conn, absent.id, stats).await?;
     }
     Ok(())
-}
-
-async fn move_highlights(
-    conn: &Connection,
-    source: &str,
-    placed: &[(&SourceDocument, Identity)],
-) -> Result<()> {
-    let destinations = sole_destinations(placed);
-    for (external_id, owners) in highlight_owners(conn, source).await? {
-        let [(highlight_id, owner)] = owners[..] else {
-            continue;
-        };
-        let Some(destination) = destinations.get(external_id.as_str()) else {
-            continue;
-        };
-        if owner != destination.id {
-            conn.execute(
-                "UPDATE highlights SET document_id = ?2, document_source_id = ?3 WHERE id = ?1",
-                params![highlight_id, destination.document_id, destination.id],
-            )
-            .await?;
-        }
-    }
-    Ok(())
-}
-
-fn sole_destinations<'a>(placed: &'a [(&'a SourceDocument, Identity)]) -> HashMap<&'a str, &'a Identity> {
-    let mut destinations = HashMap::new();
-    let mut repeated = HashSet::new();
-    for (document, identity) in placed {
-        for highlight in &document.highlights {
-            if destinations
-                .insert(highlight.external_id.as_str(), identity)
-                .is_some()
-            {
-                repeated.insert(highlight.external_id.as_str());
-            }
-        }
-    }
-    destinations.retain(|external_id, _| !repeated.contains(external_id));
-    destinations
-}
-
-async fn highlight_owners(conn: &Connection, source: &str) -> Result<HashMap<String, Vec<(i64, i64)>>> {
-    let mut rows = conn
-        .query(
-            "SELECT h.external_id, h.id, h.document_source_id
-             FROM highlights h JOIN document_sources s ON s.id = h.document_source_id
-             WHERE s.source = ?",
-            [source],
-        )
-        .await?;
-    let mut owners: HashMap<String, Vec<(i64, i64)>> = HashMap::new();
-    while let Some(row) = rows.next().await? {
-        owners
-            .entry(row.get(0)?)
-            .or_default()
-            .push((row.get(1)?, row.get(2)?));
-    }
-    Ok(owners)
 }
 
 async fn stored_highlights(conn: &Connection, identity_id: i64) -> Result<HashMap<String, StoredHighlight>> {
