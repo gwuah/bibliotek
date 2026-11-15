@@ -19,6 +19,7 @@ const REPAINT_EVENT = "light:repaint";
 
 let library = {};
 let repaintQueued = false;
+let restoreRun = 0;
 
 function declaredUrl() {
   return document.querySelector('meta[name="light:url"]')?.content?.trim() || null;
@@ -27,6 +28,12 @@ function declaredUrl() {
 function pageHighlights(from) {
   return highlightsForPage(from, window.location.href, declaredUrl());
 }
+
+function pageAddress() {
+  return highlightUrl(window.location.href, declaredUrl());
+}
+
+let shownAddress = pageAddress();
 
 const notes = createNotes({
   saveNote: (groupId, text) => commands.setNote(groupId, text).catch(reportError),
@@ -59,7 +66,7 @@ async function highlightSelection() {
     repr: captured.repr,
     chunks: captured.chunks,
     anchor: captured.anchor,
-    url: highlightUrl(window.location.href, declaredUrl()),
+    url: pageAddress(),
     date: new Date().toISOString(),
   };
   try {
@@ -68,6 +75,7 @@ async function highlightSelection() {
     reportError(error);
     return;
   }
+  if (pageAddress() !== highlight.url) return;
   if (!paintHighlight(highlight)) {
     console.error("Light for liotek: the selected text changed before it could be highlighted.");
     commands.deleteHighlight(highlight.groupID).catch(reportError);
@@ -107,12 +115,26 @@ function repaintSoon() {
 }
 
 async function restoreHighlights() {
+  const run = ++restoreRun;
   library = await loadHighlights();
+  if (run !== restoreRun) return;
   notes.setLibrary(library);
-  for (let attempt = 0; attempt < PAINT_ATTEMPTS; attempt++) {
+  for (let attempt = 0; attempt < PAINT_ATTEMPTS && run === restoreRun; attempt++) {
     paintSite();
     await new Promise((resolve) => setTimeout(resolve, PAINT_INTERVAL_MS));
   }
+}
+
+// Single-page apps change the address without reloading, and may reuse the previous
+// page's elements for the next one, so its highlights are removed before repainting.
+function followNavigation() {
+  if (extensionGone()) return;
+  const address = pageAddress();
+  if (address === shownAddress) return;
+  shownAddress = address;
+  notes.saveOpenNote();
+  for (const groupId of paintedGroupIds()) unpaintHighlight(groupId);
+  restoreHighlights();
 }
 
 onHighlightsChanged((changed) => {
@@ -141,6 +163,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 document.addEventListener(REPAINT_EVENT, repaintSoon);
+globalThis.navigation?.addEventListener("currententrychange", followNavigation);
 
 document.addEventListener("keydown", (event) => {
   if (event.ctrlKey && event.key === "a") highlightSelection();

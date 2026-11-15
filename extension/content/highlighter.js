@@ -42,7 +42,10 @@ export function captureSelection() {
 }
 
 export function paintHighlight(highlight) {
-  if (spansOf(highlight.groupID).length) return true;
+  if (spansOf(highlight.groupID).length) {
+    if (paintedTextMatches(highlight)) return true;
+    unpaintHighlight(highlight.groupID);
+  }
   const quote = compactText((highlight.chunks || []).join(""));
   if (!quote) return false;
 
@@ -54,6 +57,13 @@ export function paintHighlight(highlight) {
   const end = stream.origin[at + quote.length - 1] + 1;
   for (const slice of stream.slicesBetween(start, end)) wrapSlice(slice, highlight.groupID);
   return spansOf(highlight.groupID).length > 0;
+}
+
+// A page that reuses its elements for new content can leave a highlight wrapped around
+// text that is no longer the text it was made on.
+function paintedTextMatches(highlight) {
+  const painted = spansOf(highlight.groupID).map((span) => span.textContent).join("");
+  return compactText(painted) === compactText((highlight.chunks || []).join(""));
 }
 
 function textStream(root) {

@@ -1,5 +1,5 @@
 import { normalizeInstallationId } from "./installation.js";
-import { countHighlights, mergeLibraries } from "./library.js";
+import { countHighlights, mergeLibraries, mergeSamePages } from "./library.js";
 
 export const EXPORT_FORMAT = "liotek-light-export";
 export const EXPORT_VERSION = 1;
@@ -103,10 +103,11 @@ function validateHighlight(highlight, where) {
 // both twice.
 export function planImport(current, incoming) {
   if (countHighlights(current.highlights) === 0) {
+    const highlights = mergeSamePages(incoming.highlights);
     return {
       installationId: incoming.installationId,
-      highlights: incoming.highlights,
-      added: countHighlights(incoming.highlights),
+      highlights,
+      added: countHighlights(highlights),
       commentsAdded: 0,
       adopted: incoming.installationId !== current.installationId,
     };

@@ -6,8 +6,8 @@ import {
   countHighlights,
   groupBySite,
   highlightsForPage,
-  highlightsForSite,
   mergeLibraries,
+  mergeSamePages,
   noteOf,
   removeHighlight,
   setNote,
@@ -76,15 +76,52 @@ test("merging adds missing highlights and missing comments but never overwrites"
   assert.deepEqual(library[url][0].comments.map((c) => c.text), ["kept", "added"]);
 });
 
-test("a page shows every highlight stored for its site, whatever the path", () => {
+test("a page shows only the highlights saved under its own address", () => {
+  const chatA = "https://claude.ai/chat/eb266478";
+  const chatB = "https://claude.ai/chat/5a1807b4";
   const library = {
-    "https://a.example/one": [highlight(1, "https://a.example/one")],
-    "https://a.example/two?x=1": [highlight(2, "https://a.example/two?x=1")],
-    "https://b.example/one": [highlight(3, "https://b.example/one")],
-    "not a url": [highlight(4, "not a url")],
+    [chatA]: [highlight(1, chatA)],
+    [chatB]: [highlight(2, chatB)],
+    "https://news.example/item?id=7": [highlight(3, "https://news.example/item?id=7")],
   };
-  const ids = highlightsForSite(library, "https://a.example/one#section").map((h) => h.groupID);
-  assert.deepEqual(ids.sort(), [1, 2]);
+  const ids = (pageUrl) => highlightsForPage(library, pageUrl, null).map((h) => h.groupID);
+
+  assert.deepEqual(ids(`${chatA}#reply`), [1]);
+  assert.deepEqual(ids(chatB), [2]);
+  assert.deepEqual(ids("https://claude.ai/new"), []);
+  assert.deepEqual(ids("https://news.example/item?id=8"), [], "a different query is a different page");
+});
+
+test("http and https, with or without www, are the same page", () => {
+  const library = { "http://www.a.example/essay": [highlight(1, "http://www.a.example/essay")] };
+  assert.deepEqual(highlightsForPage(library, "https://a.example/essay", null).map((h) => h.groupID), [1]);
+});
+
+test("a new highlight joins the page already saved under another form of its address", () => {
+  const library = { "https://a.example/essay": [highlight(1, "https://a.example/essay")] };
+  const after = addHighlight(library, highlight(2, "http://www.a.example/essay"));
+  assert.deepEqual(Object.keys(after), ["https://a.example/essay"]);
+  assert.deepEqual(after["https://a.example/essay"].map((h) => [h.groupID, h.url]), [
+    [1, "https://a.example/essay"],
+    [2, "https://a.example/essay"],
+  ]);
+});
+
+test("one page saved under several addresses is merged under its https address, losing nothing", () => {
+  const note = (id) => ({ id, text: id, created: clock.now, updated: clock.now });
+  const library = {
+    "http://www.a.example/essay": [highlight(1, "http://www.a.example/essay", { comments: [note("old")] })],
+    "https://a.example/essay": [highlight(1, "https://a.example/essay", { comments: [note("new")] }), highlight(2, "https://a.example/essay")],
+    "https://b.example/": [highlight(3, "https://b.example/")],
+  };
+  const merged = mergeSamePages(library);
+
+  assert.deepEqual(Object.keys(merged).sort(), ["https://a.example/essay", "https://b.example/"]);
+  const essay = merged["https://a.example/essay"];
+  assert.deepEqual(essay.map((h) => h.groupID), [1, 2]);
+  assert.deepEqual(essay[0].comments.map((c) => c.id), ["new", "old"]);
+  assert.ok(essay.every((h) => h.url === "https://a.example/essay"));
+  assert.deepEqual(mergeSamePages(merged), merged, "running it again changes nothing");
 });
 
 test("a page that declares light:url gets exactly that address's highlights", () => {
@@ -100,15 +137,6 @@ test("a page that declares light:url gets exactly that address's highlights", ()
   assert.deepEqual(opened("file:///Users/me/iconoclast/books/quine-two-dogmas/book/book.html"), [1, 2]);
   assert.deepEqual(highlightsForPage(library, croce, `${croce}#page-9`).map((h) => h.groupID), [3]);
   assert.deepEqual(highlightsForPage(library, croce, "http://liotek.test/reader/unread/book/book.html"), []);
-});
-
-test("a page without light:url still gets every highlight on its host", () => {
-  const library = {
-    "https://a.example/one": [highlight(1, "https://a.example/one")],
-    "https://a.example/two": [highlight(2, "https://a.example/two")],
-  };
-  const ids = highlightsForPage(library, "https://a.example/one", null).map((h) => h.groupID);
-  assert.deepEqual(ids.sort(), [1, 2]);
 });
 
 test("the popup lists sites and pages newest first", () => {

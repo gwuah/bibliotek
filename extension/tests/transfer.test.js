@@ -57,7 +57,7 @@ test("an empty extension adopts the file's installation and highlights", () => {
   assert.equal(plan.installationId, UUID);
   assert.equal(plan.adopted, true);
   assert.equal(plan.added, 2);
-  assert.equal(plan.highlights, incoming.highlights);
+  assert.deepEqual(plan.highlights, incoming.highlights);
 });
 
 test("the same installation's file merges into what is here", () => {

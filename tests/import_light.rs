@@ -433,6 +433,43 @@ async fn a_local_comment_is_kept_as_a_note_when_its_highlight_is_removed() {
 }
 
 #[tokio::test]
+async fn a_highlight_moved_to_another_page_keeps_its_local_comments() {
+    let app = TestApp::start().await;
+    let old_url = "http://www.moved.example/essay";
+    let new_url = "https://moved.example/essay";
+    let moved = || highlight(1, "words", json!([{ "id": "c1", "text": "a thought" }]));
+    sync(&app, "aaa", payload(json!({ old_url: [moved()] })))
+        .await
+        .data();
+    let tx = app.state.db.begin().await.unwrap();
+    execute(
+        &tx,
+        "INSERT INTO comments (highlight_id, body) SELECT id, 'my own aside' FROM highlights",
+        (),
+    )
+    .await;
+    tx.commit().await.unwrap();
+
+    let stats = sync(&app, "aaa", payload(json!({ new_url: [moved()] })))
+        .await
+        .data();
+
+    assert_eq!(stats["highlights"]["deleted"], 0);
+    assert_eq!(stats["comments_rehomed_as_notes"], 0);
+    assert_eq!(stats["documents"]["deleted"], 1, "the old page held nothing else");
+    assert_eq!(
+        library_count(
+            &app,
+            "SELECT count(*) FROM comments c JOIN highlights h ON h.id = c.highlight_id
+             JOIN documents d ON d.id = h.document_id
+             WHERE d.canonical_url = 'https://moved.example/essay'"
+        )
+        .await,
+        2
+    );
+}
+
+#[tokio::test]
 async fn a_light_sync_needs_the_admin_token() {
     let app = TestApp::start().await;
 

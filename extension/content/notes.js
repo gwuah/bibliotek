@@ -379,6 +379,7 @@ export function createNotes({ saveNote, deleteHighlight }) {
     setLibrary,
     refreshMarkers,
     showNotice,
+    saveOpenNote: commit,
 
     editNew(highlight) {
       const groupId = String(highlight.groupID);

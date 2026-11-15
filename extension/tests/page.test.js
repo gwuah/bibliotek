@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { highlightUrl, withoutFragment } from "../lib/page.js";
+import { highlightUrl, samePage, withoutFragment } from "../lib/page.js";
 
 test("a place in the page is dropped from its address", () => {
   assert.equal(withoutFragment("https://a.example/essay#section-2"), "https://a.example/essay");
@@ -18,4 +18,13 @@ test("a highlight is saved under the address the page declares, else its own", (
   const declared = "http://liotek.test/reader/croce-logic/book/book.html";
   assert.equal(highlightUrl("file:///books/croce-logic/book/book.html#page-3", declared), declared);
   assert.equal(highlightUrl("https://a.example/essay#notes", null), "https://a.example/essay");
+});
+
+test("pages differing only in http, https or www are the same page", () => {
+  assert.ok(samePage("http://www.a.example/essay?id=3", "https://a.example/essay?id=3"));
+  assert.ok(samePage("https://WWW.a.example/essay", "https://a.example/essay"));
+  assert.ok(!samePage("https://a.example/essay?id=3", "https://a.example/essay?id=4"));
+  assert.ok(!samePage("https://a.example/essay", "https://b.example/essay"));
+  assert.ok(!samePage("https://www2.a.example/essay", "https://a.example/essay"));
+  assert.ok(samePage("not a url", "not a url"));
 });

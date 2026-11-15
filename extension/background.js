@@ -1,5 +1,5 @@
 import * as storage from "./lib/storage.js";
-import { addHighlight, removeHighlight, setNote, systemClock } from "./lib/library.js";
+import { addHighlight, mergeSamePages, removeHighlight, setNote, systemClock } from "./lib/library.js";
 import { parseExport, planImport } from "./lib/transfer.js";
 
 const HIGHLIGHT_MENU = "highlight";
@@ -10,6 +10,7 @@ chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({ id: HIGHLIGHT_MENU, title: "Highlight Text", contexts: ["selection"] });
   });
+  storage.updateLibrary((library) => ({ ...library, highlights: mergeSamePages(library.highlights) }));
 });
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {

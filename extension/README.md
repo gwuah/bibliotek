@@ -45,8 +45,9 @@ specific to the pages that use them.
   ```
 
   A page that declares one shows exactly the highlights saved under it. A page without one
-  is saved under its own address, and shows every highlight from its host, since ordinary
-  URLs drift between visits.
+  is saved under its own address, without its fragment, and shows only the highlights saved
+  there. `http` and `https`, and a leading `www.`, count as the same page; a different query
+  string is a different page. Single-page apps that change the address in place are followed.
 
 - **`light:repaint`** asks Light to paint the page's highlights again, after the page has
   rewritten its own text (and with it the highlight marks):

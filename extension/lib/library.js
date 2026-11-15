@@ -1,12 +1,14 @@
-import { withoutFragment } from "./page.js";
+import { highlightUrl, samePage } from "./page.js";
 
 export function addHighlight(library, highlight) {
-  const page = library[highlight.url] || [];
-  return { ...library, [highlight.url]: [...page, highlight] };
+  const url = savedAddressOf(library, highlight.url) ?? highlight.url;
+  return { ...library, [url]: [...(library[url] || []), { ...highlight, url }] };
 }
 
-// Matched on groupID alone: a highlight is painted on every page of its site, so the
-// page showing it may not be its key.
+function savedAddressOf(library, url) {
+  return Object.keys(library).find((saved) => samePage(saved, url)) ?? null;
+}
+
 export function removeHighlight(library, groupId) {
   const id = String(groupId);
   const next = {};
@@ -66,12 +68,13 @@ export function mergeLibraries(existing, incoming) {
   let added = 0;
   let commentsAdded = 0;
 
-  for (const [url, highlights] of Object.entries(incoming)) {
+  for (const [incomingUrl, highlights] of Object.entries(incoming)) {
+    const url = savedAddressOf(library, incomingUrl) ?? incomingUrl;
     const page = [...(library[url] || [])];
     for (const highlight of highlights) {
       const index = page.findIndex((h) => String(h.groupID) === String(highlight.groupID));
       if (index === -1) {
-        page.push(highlight);
+        page.push({ ...highlight, url });
         added++;
         continue;
       }
@@ -101,18 +104,19 @@ export function hostnameOf(url) {
 }
 
 export function highlightsForPage(library, pageUrl, declaredUrl) {
-  if (!declaredUrl) return highlightsForSite(library, pageUrl);
-  return library[withoutFragment(declaredUrl)] ?? [];
+  const saved = savedAddressOf(library, highlightUrl(pageUrl, declaredUrl));
+  return saved ? library[saved] : [];
 }
 
-// Matched by hostname because URLs drift between visits (fragments, query strings,
-// redirects).
-export function highlightsForSite(library, pageUrl) {
-  const host = hostnameOf(pageUrl);
-  if (!host) return [];
-  return Object.entries(library)
-    .filter(([url]) => hostnameOf(url) === host)
-    .flatMap(([, highlights]) => highlights);
+// Libraries saved before pages were matched exactly can hold one page under several
+// addresses (http and https, with and without www). The https address is kept.
+export function mergeSamePages(library) {
+  const httpsFirst = Object.entries(library).sort(([a], [b]) => isHttps(b) - isHttps(a));
+  return mergeLibraries({}, Object.fromEntries(httpsFirst)).library;
+}
+
+function isHttps(url) {
+  return url.startsWith("https:") ? 1 : 0;
 }
 
 function timeOf(highlight) {
